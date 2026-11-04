@@ -45,6 +45,9 @@ hr { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px 0; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip { padding: 6px 12px; border-radius: 16px; border: 1px solid var(--navy); background: #fff; color: var(--navy); }
 .chip.on { background: var(--navy); color: #fff; }
+.chips.cand .chip { display: grid; text-align: left; border-radius: 12px; padding: 6px 12px; }
+.chips.cand .chip small { font-size: .7rem; opacity: .75; }
+.hint.warn { color: #9a6700; }
 .chips.areas { flex-wrap: nowrap; overflow-x: auto; padding: 6px 0; margin-bottom: 6px; }
 .chips.areas .chip { white-space: nowrap; flex: 0 0 auto; font-size: .85rem; }
 pre { white-space: pre-wrap; font-size: .75rem; }

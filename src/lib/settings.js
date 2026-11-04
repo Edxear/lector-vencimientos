@@ -12,3 +12,19 @@ export function getDefaultNotifyDays() {
 export function setDefaultNotifyDays(days) {
   localStorage.setItem(KEY, String(days))
 }
+
+const ORDER_KEY = 'lv-date-order'
+export const DATE_ORDER_OPTIONS = [
+  { value: 'DMY', label: 'Día/Mes/Año (31/12/26)' },
+  { value: 'MDY', label: 'Mes/Día/Año (12/31/26)' },
+  { value: 'YMD', label: 'Año/Mes/Día (26/12/31)' },
+]
+
+export function getDateOrder() {
+  const v = localStorage.getItem(ORDER_KEY)
+  return DATE_ORDER_OPTIONS.some((o) => o.value === v) ? v : 'DMY'
+}
+
+export function setDateOrder(order) {
+  localStorage.setItem(ORDER_KEY, order)
+}

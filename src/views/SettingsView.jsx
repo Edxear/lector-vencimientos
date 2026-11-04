@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { exportAll, flush, clearLocal } from '../lib/db'
 import { getPushState, enablePush, disablePush } from '../lib/push'
-import { NOTIFY_OPTIONS, getDefaultNotifyDays, setDefaultNotifyDays } from '../lib/settings'
+import { NOTIFY_OPTIONS, DATE_ORDER_OPTIONS, getDefaultNotifyDays, setDefaultNotifyDays, getDateOrder, setDateOrder } from '../lib/settings'
 
 const STATE_TEXT = {
   on: 'Activados en este dispositivo',
@@ -14,6 +14,7 @@ const STATE_TEXT = {
 export default function SettingsView({ email, onLogout }) {
   const [state, setState] = useState('off')
   const [days, setDays] = useState(getDefaultNotifyDays())
+  const [order, setOrder] = useState(getDateOrder())
   const [err, setErr] = useState('')
 
   useEffect(() => { getPushState().then(setState) }, [])
@@ -56,6 +57,16 @@ export default function SettingsView({ email, onLogout }) {
           </select>
         </label>
         <p className="hint">El aviso se envía una vez al día, por la mañana, para los productos que entraron en su plazo. Cada producto puede tener su propia anticipación.</p>
+      </div>
+      <div className="card">
+        <h3>Lectura de fechas</h3>
+        <label>
+          Orden habitual de las fechas impresas
+          <select value={order} onChange={(e) => { setOrder(e.target.value); setDateOrder(e.target.value) }}>
+            {DATE_ORDER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </label>
+        <p className="hint">Se usa para decidir cuando una fecha como 03/04/27 puede leerse de más de una forma. Siempre podrás elegir otra lectura antes de guardar.</p>
       </div>
       <div className="card">
         <h3>Cuenta</h3>
