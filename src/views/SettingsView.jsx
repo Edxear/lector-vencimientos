@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { exportAll, flush, clearLocal } from '../lib/db'
 import { getPushState, enablePush, disablePush } from '../lib/push'
-import { NOTIFY_OPTIONS, DATE_ORDER_OPTIONS, APP_CONTEXTS, getDefaultNotifyDays, setDefaultNotifyDays, getDateOrder, setDateOrder, getAppUseCase, setAppUseCase } from '../lib/settings'
+import { NOTIFY_OPTIONS, DATE_ORDER_OPTIONS, APP_CONTEXTS, getDefaultNotifyDays, setDefaultNotifyDays, getDateOrder, setDateOrder, getAppUseCase, setAppUseCase, getGeofenceForUseCase, setGeofenceForUseCase, clearGeofenceForUseCase } from '../lib/settings'
 
 const STATE_TEXT = {
   on: 'Activados en este dispositivo',
@@ -17,6 +17,7 @@ export default function SettingsView({ email, onLogout }) {
   const [order, setOrder] = useState(getDateOrder())
   const [useCase, setUseCaseState] = useState(getAppUseCase())
   const [geoState, setGeoState] = useState('unknown')
+  const [geofence, setGeofence] = useState(getGeofenceForUseCase())
   const [err, setErr] = useState('')
 
   useEffect(() => {
@@ -54,14 +55,28 @@ export default function SettingsView({ email, onLogout }) {
     setErr('')
     try {
       if (!('geolocation' in navigator)) throw new Error('Tu navegador no admite geolocalización.')
-      await new Promise((resolve, reject) => {
+      const pos = await new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 600000 })
       })
+      const currentGeofence = {
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+        radius: APP_CONTEXTS[useCase].radius,
+        label: APP_CONTEXTS[useCase].geofenceLabel,
+      }
+      setGeofenceForUseCase(useCase, currentGeofence)
+      setGeofence({ ...currentGeofence, saved: true })
       setGeoState('granted')
     } catch (e) {
       setGeoState('denied')
       setErr(e.message || 'No se pudo activar la ubicación.')
     }
+  }
+
+  function handleUseCaseChange(nextUseCase) {
+    setUseCaseState(nextUseCase)
+    setAppUseCase(nextUseCase)
+    setGeofence(getGeofenceForUseCase(nextUseCase))
   }
 
   return (
@@ -87,7 +102,7 @@ export default function SettingsView({ email, onLogout }) {
         <h3>Uso de la app</h3>
         <label>
           ¿Es para uso en hogar o comercio?
-          <select value={useCase} onChange={(e) => { const next = e.target.value; setUseCaseState(next); setAppUseCase(next) }}>
+          <select value={useCase} onChange={(e) => handleUseCaseChange(e.target.value)}>
             {Object.entries(APP_CONTEXTS).map(([key, ctx]) => <option key={key} value={key}>{ctx.label}</option>)}
           </select>
         </label>
@@ -96,8 +111,12 @@ export default function SettingsView({ email, onLogout }) {
       <div className="card">
         <h3>Ubicación</h3>
         <p className="hint">Permite la ubicación para avisos más contextuales según el entorno: hogar o comercio. Sin permiso, la app sigue funcionando con avisos estáticos.</p>
-        <button className="btn primary" onClick={requestLocation}>Activar ubicación</button>
+        <button className="btn primary" onClick={requestLocation}>Guardar punto de referencia</button>
+        <button className="btn" onClick={() => { clearGeofenceForUseCase(useCase); setGeofence(getGeofenceForUseCase(useCase)); setGeoState('unknown') }}>Borrar geocerca</button>
         <p className="hint">Estado: {geoState === 'granted' ? 'Activada' : geoState === 'denied' ? 'Denegada' : geoState === 'unsupported' ? 'No disponible' : 'Sin permiso aún'}</p>
+        {geofence.saved && (
+          <p className="hint">Punto guardado: {geofence.latitude.toFixed(4)}, {geofence.longitude.toFixed(4)} · radio {geofence.radius} m · {geofence.label}</p>
+        )}
       </div>
       <div className="card">
         <h3>Lectura de fechas</h3>

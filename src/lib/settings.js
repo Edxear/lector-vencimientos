@@ -1,6 +1,7 @@
 const KEY = 'lv-default-notify-days'
 const USE_KEY = 'lv-app-use-case'
 const ORDER_KEY = 'lv-date-order'
+const GEOFENCE_KEY = 'lv-geofence'
 
 export const NOTIFY_OPTIONS = [3, 7, 15, 30]
 export const LOCATIONS = ['Almacén', 'Frío', 'Congelados', 'Bazar', 'Verdulería', 'Carnicería', 'Devolución Proveedor']
@@ -37,6 +38,43 @@ export function getAppUseCase() {
 export function setAppUseCase(value) {
   if (!APP_CONTEXTS[value]) return
   localStorage.setItem(USE_KEY, value)
+}
+
+export function getGeofenceForUseCase(useCase = getAppUseCase()) {
+  const safe = APP_CONTEXTS[useCase] ? useCase : 'hogar'
+  const raw = localStorage.getItem(GEOFENCE_KEY)
+  const parsed = raw ? JSON.parse(raw) : {}
+  const fallback = {
+    latitude: 0,
+    longitude: 0,
+    radius: APP_CONTEXTS[safe].radius,
+    label: APP_CONTEXTS[safe].geofenceLabel,
+    saved: false,
+  }
+  if (!parsed || !parsed[safe]) return fallback
+  return { ...fallback, ...parsed[safe], saved: true }
+}
+
+export function setGeofenceForUseCase(useCase, geofence) {
+  const safe = APP_CONTEXTS[useCase] ? useCase : 'hogar'
+  const raw = localStorage.getItem(GEOFENCE_KEY)
+  const map = raw ? JSON.parse(raw) : {}
+  map[safe] = {
+    latitude: Number(geofence.latitude),
+    longitude: Number(geofence.longitude),
+    radius: Number(geofence.radius) || APP_CONTEXTS[safe].radius,
+    label: geofence.label || APP_CONTEXTS[safe].geofenceLabel,
+    saved: true,
+  }
+  localStorage.setItem(GEOFENCE_KEY, JSON.stringify(map))
+}
+
+export function clearGeofenceForUseCase(useCase = getAppUseCase()) {
+  const raw = localStorage.getItem(GEOFENCE_KEY)
+  if (!raw) return
+  const map = JSON.parse(raw)
+  delete map[useCase]
+  localStorage.setItem(GEOFENCE_KEY, JSON.stringify(map))
 }
 
 export const DATE_ORDER_OPTIONS = [

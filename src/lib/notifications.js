@@ -1,23 +1,40 @@
 import { db, markNotified } from './db'
 import { daysUntil } from './dates'
-import { APP_CONTEXTS, getAppUseCase } from './settings'
+import { APP_CONTEXTS, getAppUseCase, getGeofenceForUseCase } from './settings'
+
+function haversineKm(a, b) {
+  const earthR = 6371
+  const toRad = (v) => (v * Math.PI) / 180
+  const dLat = toRad(b.latitude - a.latitude)
+  const dLon = toRad(b.longitude - a.longitude)
+  const lat1 = toRad(a.latitude)
+  const lat2 = toRad(b.latitude)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2
+  return 2 * earthR * Math.asin(Math.sqrt(h))
+}
 
 async function getLocationContext() {
   if (!('geolocation' in navigator)) return { allowed: false }
   const useCase = getAppUseCase()
   const ctx = APP_CONTEXTS[useCase]
+  const geofence = getGeofenceForUseCase(useCase)
   try {
     const permission = await navigator.permissions?.query?.({ name: 'geolocation' }).catch(() => null)
     if (permission && permission.state === 'denied') return { allowed: false, useCase: ctx.label }
     const pos = await new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 5000, maximumAge: 300000 })
     })
+    const current = { latitude: pos.coords.latitude, longitude: pos.coords.longitude }
+    const geofenceActive = geofence.saved && geofence.latitude && geofence.longitude
+      ? haversineKm(current, geofence) <= (Number(geofence.radius) || ctx.radius) / 1000
+      : false
     return {
       allowed: true,
       useCase: ctx.label,
-      geofenceLabel: ctx.geofenceLabel,
-      radius: ctx.radius,
-      coords: { latitude: pos.coords.latitude, longitude: pos.coords.longitude },
+      geofenceLabel: geofence.label || ctx.geofenceLabel,
+      radius: Number(geofence.radius) || ctx.radius,
+      geofenceActive,
+      coords: current,
     }
   } catch {
     return { allowed: false, useCase: ctx.label }
@@ -28,7 +45,8 @@ function buildBody(name, left, itemLocation, proximity) {
   const locationText = itemLocation ? ` en ${itemLocation}` : ''
   const phrase = left < 0 ? `venció hace ${-left} día(s)` : left === 0 ? 'vence hoy' : `vence en ${left} día(s)`
   if (proximity?.allowed && proximity.useCase) {
-    return `Ubicación activa para ${proximity.useCase.toLowerCase()}. ${name}${locationText} ${phrase}.`
+    const context = proximity.geofenceActive ? `Ubicación activa ${proximity.geofenceLabel}.` : `Ubicación detectada para ${proximity.useCase.toLowerCase()}.`
+    return `${context} ${name}${locationText} ${phrase}.`
   }
   return `${name}${locationText} ${phrase}.`
 }
