@@ -73,7 +73,7 @@ export default function SettingsView({ email, onLogout }) {
   }
 
   async function persistLocalAndRemote() {
-    await syncUserSettingsToSupabase().catch(() => {})
+    await syncUserSettingsToSupabase().catch(() => { })
   }
 
   async function requestLocation() {
@@ -156,7 +156,7 @@ export default function SettingsView({ email, onLogout }) {
       </div>
       <div className="card">
         <h3>Ubicación</h3>
-        <p className="hint">Permite la ubicación para avisos más contextuales según el entorno: hogar o comercio. Sin permiso, la app sigue funcionando con avisos estáticos.</p>
+        <p className="hint">Permite la ubicación para avisos más contextuales según el entorno: hogar o comercio.</p>
         <button className="btn primary" onClick={requestLocation}>Guardar punto de referencia</button>
         <button className="btn" onClick={handleClearGeofence}>Borrar geocerca</button>
         <p className="hint">Estado: {geoState === 'granted' ? 'Activada' : geoState === 'denied' ? 'Denegada' : geoState === 'unsupported' ? 'No disponible' : 'Sin permiso aún'}</p>
@@ -178,7 +178,7 @@ export default function SettingsView({ email, onLogout }) {
         <h3>Cuenta</h3>
         <p className="hint">{email}</p>
         <button className="btn" onClick={exportJson}>Exportar datos (JSON)</button>
-        <button className="btn danger" onClick={async () => { await flush(); await disablePush().catch(() => {}); await supabase.auth.signOut(); await clearLocal(); onLogout?.() }}>
+        <button className="btn danger" onClick={async () => { await flush(); await disablePush().catch(() => { }); await supabase.auth.signOut(); await clearLocal(); onLogout?.() }}>
           Cerrar sesión
         </button>
       </div>

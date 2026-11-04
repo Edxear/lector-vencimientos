@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import InventoryList from './views/InventoryList'
 import AddFlow from './views/AddFlow'
+import PurchaseImportView from './views/PurchaseImportView'
 import AuthView from './views/AuthView'
 import SettingsView from './views/SettingsView'
 import Logo from './views/Logo'
@@ -46,6 +47,8 @@ export default function App() {
           <InventoryList />
         ) : tab === 'add' ? (
           <AddFlow onDone={() => setTab('list')} />
+        ) : tab === 'purchases' ? (
+          <PurchaseImportView />
         ) : (
           <SettingsView email={session.user.email} onLogout={() => setTab('list')} />
         )}
@@ -54,6 +57,7 @@ export default function App() {
         <nav>
           <button className={tab === 'list' ? 'on' : ''} onClick={() => setTab('list')}>Inventario</button>
           <button className={tab === 'add' ? 'on' : ''} onClick={() => setTab('add')}>＋ Agregar</button>
+          <button className={tab === 'purchases' ? 'on' : ''} onClick={() => setTab('purchases')}>Compras</button>
           <button className={tab === 'settings' ? 'on' : ''} onClick={() => setTab('settings')}>Ajustes</button>
         </nav>
       )}
