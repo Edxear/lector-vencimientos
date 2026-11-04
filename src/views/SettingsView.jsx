@@ -2,7 +2,22 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { exportAll, flush, clearLocal } from '../lib/db'
 import { getPushState, enablePush, disablePush } from '../lib/push'
-import { NOTIFY_OPTIONS, DATE_ORDER_OPTIONS, APP_CONTEXTS, getDefaultNotifyDays, setDefaultNotifyDays, getDateOrder, setDateOrder, getAppUseCase, setAppUseCase, getGeofenceForUseCase, setGeofenceForUseCase, clearGeofenceForUseCase } from '../lib/settings'
+import {
+  NOTIFY_OPTIONS,
+  DATE_ORDER_OPTIONS,
+  APP_CONTEXTS,
+  getDefaultNotifyDays,
+  setDefaultNotifyDays,
+  getDateOrder,
+  setDateOrder,
+  getAppUseCase,
+  setAppUseCase,
+  getGeofenceForUseCase,
+  setGeofenceForUseCase,
+  clearGeofenceForUseCase,
+  hydrateUserSettingsFromSupabase,
+  syncUserSettingsToSupabase,
+} from '../lib/settings'
 
 const STATE_TEXT = {
   on: 'Activados en este dispositivo',
@@ -22,6 +37,12 @@ export default function SettingsView({ email, onLogout }) {
 
   useEffect(() => {
     getPushState().then(setState)
+    hydrateUserSettingsFromSupabase().finally(() => {
+      setDays(getDefaultNotifyDays())
+      setOrder(getDateOrder())
+      setUseCaseState(getAppUseCase())
+      setGeofence(getGeofenceForUseCase())
+    })
     if (!('geolocation' in navigator)) {
       setGeoState('unsupported')
       return
@@ -51,6 +72,10 @@ export default function SettingsView({ email, onLogout }) {
     URL.revokeObjectURL(url)
   }
 
+  async function persistLocalAndRemote() {
+    await syncUserSettingsToSupabase().catch(() => {})
+  }
+
   async function requestLocation() {
     setErr('')
     try {
@@ -67,6 +92,7 @@ export default function SettingsView({ email, onLogout }) {
       setGeofenceForUseCase(useCase, currentGeofence)
       setGeofence({ ...currentGeofence, saved: true })
       setGeoState('granted')
+      await persistLocalAndRemote()
     } catch (e) {
       setGeoState('denied')
       setErr(e.message || 'No se pudo activar la ubicación.')
@@ -77,6 +103,26 @@ export default function SettingsView({ email, onLogout }) {
     setUseCaseState(nextUseCase)
     setAppUseCase(nextUseCase)
     setGeofence(getGeofenceForUseCase(nextUseCase))
+    persistLocalAndRemote()
+  }
+
+  function handleNotifyDaysChange(nextDays) {
+    setDays(nextDays)
+    setDefaultNotifyDays(nextDays)
+    persistLocalAndRemote()
+  }
+
+  function handleDateOrderChange(nextOrder) {
+    setOrder(nextOrder)
+    setDateOrder(nextOrder)
+    persistLocalAndRemote()
+  }
+
+  async function handleClearGeofence() {
+    clearGeofenceForUseCase(useCase)
+    setGeofence(getGeofenceForUseCase(useCase))
+    setGeoState('unknown')
+    await persistLocalAndRemote()
   }
 
   return (
@@ -92,7 +138,7 @@ export default function SettingsView({ email, onLogout }) {
         {err && <p className="msg">{err}</p>}
         <label>
           Anticipación por defecto (productos nuevos)
-          <select value={days} onChange={(e) => { setDays(Number(e.target.value)); setDefaultNotifyDays(Number(e.target.value)) }}>
+          <select value={days} onChange={(e) => handleNotifyDaysChange(Number(e.target.value))}>
             {NOTIFY_OPTIONS.map((d) => <option key={d} value={d}>{d} días antes</option>)}
           </select>
         </label>
@@ -112,7 +158,7 @@ export default function SettingsView({ email, onLogout }) {
         <h3>Ubicación</h3>
         <p className="hint">Permite la ubicación para avisos más contextuales según el entorno: hogar o comercio. Sin permiso, la app sigue funcionando con avisos estáticos.</p>
         <button className="btn primary" onClick={requestLocation}>Guardar punto de referencia</button>
-        <button className="btn" onClick={() => { clearGeofenceForUseCase(useCase); setGeofence(getGeofenceForUseCase(useCase)); setGeoState('unknown') }}>Borrar geocerca</button>
+        <button className="btn" onClick={handleClearGeofence}>Borrar geocerca</button>
         <p className="hint">Estado: {geoState === 'granted' ? 'Activada' : geoState === 'denied' ? 'Denegada' : geoState === 'unsupported' ? 'No disponible' : 'Sin permiso aún'}</p>
         {geofence.saved && (
           <p className="hint">Punto guardado: {geofence.latitude.toFixed(4)}, {geofence.longitude.toFixed(4)} · radio {geofence.radius} m · {geofence.label}</p>
@@ -122,7 +168,7 @@ export default function SettingsView({ email, onLogout }) {
         <h3>Lectura de fechas</h3>
         <label>
           Orden habitual de las fechas impresas
-          <select value={order} onChange={(e) => { setOrder(e.target.value); setDateOrder(e.target.value) }}>
+          <select value={order} onChange={(e) => handleDateOrderChange(e.target.value)}>
             {DATE_ORDER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </label>

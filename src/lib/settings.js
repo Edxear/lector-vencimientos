@@ -1,3 +1,5 @@
+import { supabase } from './supabase'
+
 const KEY = 'lv-default-notify-days'
 const USE_KEY = 'lv-app-use-case'
 const ORDER_KEY = 'lv-date-order'
@@ -21,6 +23,19 @@ export const APP_CONTEXTS = {
   },
 }
 
+function readGeofenceMap() {
+  try {
+    const raw = localStorage.getItem(GEOFENCE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeGeofenceMap(map) {
+  localStorage.setItem(GEOFENCE_KEY, JSON.stringify(map))
+}
+
 export function getDefaultNotifyDays() {
   const v = Number(localStorage.getItem(KEY))
   return NOTIFY_OPTIONS.includes(v) ? v : 15
@@ -42,8 +57,7 @@ export function setAppUseCase(value) {
 
 export function getGeofenceForUseCase(useCase = getAppUseCase()) {
   const safe = APP_CONTEXTS[useCase] ? useCase : 'hogar'
-  const raw = localStorage.getItem(GEOFENCE_KEY)
-  const parsed = raw ? JSON.parse(raw) : {}
+  const parsed = readGeofenceMap()
   const fallback = {
     latitude: 0,
     longitude: 0,
@@ -57,8 +71,7 @@ export function getGeofenceForUseCase(useCase = getAppUseCase()) {
 
 export function setGeofenceForUseCase(useCase, geofence) {
   const safe = APP_CONTEXTS[useCase] ? useCase : 'hogar'
-  const raw = localStorage.getItem(GEOFENCE_KEY)
-  const map = raw ? JSON.parse(raw) : {}
+  const map = readGeofenceMap()
   map[safe] = {
     latitude: Number(geofence.latitude),
     longitude: Number(geofence.longitude),
@@ -66,15 +79,13 @@ export function setGeofenceForUseCase(useCase, geofence) {
     label: geofence.label || APP_CONTEXTS[safe].geofenceLabel,
     saved: true,
   }
-  localStorage.setItem(GEOFENCE_KEY, JSON.stringify(map))
+  writeGeofenceMap(map)
 }
 
 export function clearGeofenceForUseCase(useCase = getAppUseCase()) {
-  const raw = localStorage.getItem(GEOFENCE_KEY)
-  if (!raw) return
-  const map = JSON.parse(raw)
+  const map = readGeofenceMap()
   delete map[useCase]
-  localStorage.setItem(GEOFENCE_KEY, JSON.stringify(map))
+  writeGeofenceMap(map)
 }
 
 export const DATE_ORDER_OPTIONS = [
@@ -90,4 +101,52 @@ export function getDateOrder() {
 
 export function setDateOrder(order) {
   localStorage.setItem(ORDER_KEY, order)
+}
+
+export async function syncUserSettingsToSupabase() {
+  const { data: sessionData } = await supabase.auth.getSession()
+  if (!sessionData?.session) return
+
+  const payload = {
+    user_id: sessionData.session.user.id,
+    app_use_case: getAppUseCase(),
+    date_order: getDateOrder(),
+    default_notify_days: getDefaultNotifyDays(),
+    geofence_latitude: getGeofenceForUseCase().latitude || null,
+    geofence_longitude: getGeofenceForUseCase().longitude || null,
+    geofence_radius: getGeofenceForUseCase().radius || APP_CONTEXTS[getAppUseCase()].radius,
+  }
+
+  const { error } = await supabase.from('user_settings').upsert(payload, { onConflict: 'user_id' })
+  if (error) console.warn('No se pudieron sincronizar las preferencias de usuario:', error.message)
+}
+
+export async function hydrateUserSettingsFromSupabase() {
+  const { data: sessionData } = await supabase.auth.getSession()
+  if (!sessionData?.session) return
+
+  const { data, error } = await supabase.from('user_settings').select('*').maybeSingle()
+  if (error && error.code !== 'PGRST116') {
+    console.warn('No se pudieron cargar las preferencias desde Supabase:', error.message)
+    return
+  }
+  if (!data) return
+
+  if (APP_CONTEXTS[data.app_use_case]) {
+    setAppUseCase(data.app_use_case)
+  }
+  if (NOTIFY_OPTIONS.includes(Number(data.default_notify_days))) {
+    setDefaultNotifyDays(Number(data.default_notify_days))
+  }
+  if (DATE_ORDER_OPTIONS.some((o) => o.value === data.date_order)) {
+    setDateOrder(data.date_order)
+  }
+  if (Number.isFinite(Number(data.geofence_latitude)) && Number.isFinite(Number(data.geofence_longitude))) {
+    setGeofenceForUseCase(data.app_use_case || getAppUseCase(), {
+      latitude: Number(data.geofence_latitude),
+      longitude: Number(data.geofence_longitude),
+      radius: Number(data.geofence_radius) || APP_CONTEXTS[data.app_use_case || getAppUseCase()].radius,
+      label: APP_CONTEXTS[data.app_use_case || getAppUseCase()].geofenceLabel,
+    })
+  }
 }

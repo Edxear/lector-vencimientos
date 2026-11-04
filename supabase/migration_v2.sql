@@ -1,10 +1,26 @@
--- Migración v2: campos nuevos y funciones del servidor de avisos.
+-- Migración v2: campos nuevos, preferencias por usuario y funciones del servidor de avisos.
 -- Ejecutar en Supabase > SQL Editor (es idempotente).
 
 alter table public.products add column if not exists content text default '';
 alter table public.items add column if not exists notes text default '';
 alter table public.items add column if not exists notify_days int not null default 15;
 alter table public.items add column if not exists expiry_photo text default '';
+
+create table if not exists public.user_settings (
+  user_id uuid primary key references auth.users on delete cascade,
+  app_use_case text not null default 'hogar',
+  date_order text not null default 'DMY',
+  default_notify_days int not null default 15,
+  geofence_latitude double precision,
+  geofence_longitude double precision,
+  geofence_radius int not null default 150,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.user_settings enable row level security;
+
+create policy "own settings" on public.user_settings for all
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- Configuración privada: RLS activado y sin políticas = inaccesible desde la API
 create table if not exists public.private_config (key text primary key, value text not null);
