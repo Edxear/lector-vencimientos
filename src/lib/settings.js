@@ -1,8 +1,24 @@
 const KEY = 'lv-default-notify-days'
+const USE_KEY = 'lv-app-use-case'
+const ORDER_KEY = 'lv-date-order'
 
 export const NOTIFY_OPTIONS = [3, 7, 15, 30]
 export const LOCATIONS = ['Almacén', 'Frío', 'Congelados', 'Bazar', 'Verdulería', 'Carnicería', 'Devolución Proveedor']
 export const CATEGORIES = ['Lácteos', 'Carnes', 'Frutas y verduras', 'Almacén', 'Bebidas', 'Congelados', 'Limpieza', 'Otros']
+export const APP_CONTEXTS = {
+  hogar: {
+    label: 'Hogar',
+    zones: ['Cocina', 'Heladera', 'Congelados', 'Despensa', 'Bazar'],
+    geofenceLabel: 'la cocina',
+    radius: 150,
+  },
+  comercio: {
+    label: 'Comercio',
+    zones: ['Almacén', 'Frío', 'Verdulería', 'Carnicería', 'Bazar', 'Devolución Proveedor'],
+    geofenceLabel: 'el local',
+    radius: 400,
+  },
+}
 
 export function getDefaultNotifyDays() {
   const v = Number(localStorage.getItem(KEY))
@@ -13,7 +29,16 @@ export function setDefaultNotifyDays(days) {
   localStorage.setItem(KEY, String(days))
 }
 
-const ORDER_KEY = 'lv-date-order'
+export function getAppUseCase() {
+  const v = localStorage.getItem(USE_KEY)
+  return APP_CONTEXTS[v] ? v : 'hogar'
+}
+
+export function setAppUseCase(value) {
+  if (!APP_CONTEXTS[value]) return
+  localStorage.setItem(USE_KEY, value)
+}
+
 export const DATE_ORDER_OPTIONS = [
   { value: 'DMY', label: 'Día/Mes/Año (31/12/26)' },
   { value: 'MDY', label: 'Mes/Día/Año (12/31/26)' },
