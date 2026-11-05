@@ -1,4 +1,3 @@
-import { createWorker } from 'tesseract.js'
 import { mergeCandidates } from './dates'
 
 const WHITELIST = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/.-: ,'
@@ -6,18 +5,21 @@ let workerPromise
 
 function getWorker() {
   if (!workerPromise) {
-    workerPromise = createWorker('eng', 1, {
-      workerPath: '/tesseract/worker.min.js',
-      corePath: '/tesseract/',
-      langPath: '/tesseract/lang',
-    }).then(async (w) => {
-      await w.setParameters({
-        tessedit_char_whitelist: WHITELIST,
-        preserve_interword_spaces: '1',
-        tessedit_pageseg_mode: '6',
+    workerPromise = import('tesseract.js')
+      .then(({ createWorker }) => createWorker('eng', 1, {
+        workerPath: '/tesseract/worker.min.js',
+        corePath: '/tesseract/',
+        langPath: '/tesseract/lang',
+      }))
+      .then(async (w) => {
+        await w.setParameters({
+          tessedit_char_whitelist: WHITELIST,
+          preserve_interword_spaces: '1',
+          tessedit_pageseg_mode: '6',
+        })
+        return w
       })
-      return w
-    })
+      .catch((e) => { workerPromise = undefined; throw e })
   }
   return workerPromise
 }

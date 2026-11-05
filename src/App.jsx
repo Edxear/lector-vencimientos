@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import InventoryList from './views/InventoryList'
-import AddFlow from './views/AddFlow'
-import PurchaseImportView from './views/PurchaseImportView'
 import AuthView from './views/AuthView'
-import SettingsView from './views/SettingsView'
-import WasteAnalytics from './views/WasteAnalytics'
+
+const AddFlow = lazy(() => import('./views/AddFlow'))
+const PurchaseImportView = lazy(() => import('./views/PurchaseImportView'))
+const SettingsView = lazy(() => import('./views/SettingsView'))
+const WasteAnalytics = lazy(() => import('./views/WasteAnalytics'))
 import Logo from './views/Logo'
 import { supabase } from './lib/supabase'
 import { db, pull, flush } from './lib/db'
@@ -63,6 +64,7 @@ export default function App() {
         </div>
       )}
       <main>
+        <Suspense fallback={<p className="msg" role="status">Cargando…</p>}>
         {!session ? (
           <AuthView />
         ) : tab === 'list' ? (
@@ -76,6 +78,7 @@ export default function App() {
         ) : (
           <SettingsView email={session.user.email} onLogout={() => setTab('list')} />
         )}
+        </Suspense>
       </main>
       {session && (
         <nav>
