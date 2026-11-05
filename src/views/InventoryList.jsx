@@ -23,7 +23,7 @@ export default function InventoryList() {
   const [area, setArea] = useState('')
 
   const rows = useLiveQuery(async () => {
-    const items = await db.items.orderBy('expiryDate').toArray()
+    const items = (await db.items.orderBy('expiryDate').toArray()).filter((item) => !item.wastedAt)
     const products = await db.products.bulkGet(items.map((i) => i.ean))
     return items.map((it, i) => ({ ...it, product: products[i] }))
   }, [])

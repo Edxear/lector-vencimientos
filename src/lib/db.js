@@ -22,11 +22,15 @@ const toRemoteItem = (i) => ({
   id: i.id, ean: i.ean, expiry_date: i.expiryDate, quantity: i.quantity, location: i.location || '',
   notes: i.notes || '', notify_days: i.notifyDays ?? 15, expiry_photo: i.expiryPhoto || '',
   notified_at: i.notifiedAt ? new Date(i.notifiedAt).toISOString() : null,
+  unit_cost: i.unitCost ?? null,
+  wasted_at: i.wastedAt ? new Date(i.wastedAt).toISOString() : null,
 })
 const fromRemoteItem = (r) => ({
   id: r.id, ean: r.ean, expiryDate: r.expiry_date, quantity: r.quantity, location: r.location,
   notes: r.notes, notifyDays: r.notify_days, expiryPhoto: r.expiry_photo,
   notifiedAt: r.notified_at ? Date.parse(r.notified_at) : null, addedAt: Date.parse(r.created_at),
+  unitCost: r.unit_cost == null ? null : Number(r.unit_cost),
+  wastedAt: r.wasted_at ? Date.parse(r.wasted_at) : null,
 })
 
 export const getProduct = (ean) => db.products.get(ean)
@@ -45,6 +49,8 @@ export async function addItem(data) {
     notes: '',
     notifyDays: 15,
     expiryPhoto: '',
+    unitCost: null,
+    wastedAt: null,
     ...data,
     addedAt: Date.now(),
     notifiedAt: null,

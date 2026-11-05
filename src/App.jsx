@@ -4,6 +4,7 @@ import AddFlow from './views/AddFlow'
 import PurchaseImportView from './views/PurchaseImportView'
 import AuthView from './views/AuthView'
 import SettingsView from './views/SettingsView'
+import WasteAnalytics from './views/WasteAnalytics'
 import Logo from './views/Logo'
 import { supabase } from './lib/supabase'
 import { pull } from './lib/db'
@@ -49,6 +50,8 @@ export default function App() {
           <AddFlow onDone={() => setTab('list')} />
         ) : tab === 'purchases' ? (
           <PurchaseImportView />
+        ) : tab === 'waste' ? (
+          <WasteAnalytics />
         ) : (
           <SettingsView email={session.user.email} onLogout={() => setTab('list')} />
         )}
@@ -58,6 +61,7 @@ export default function App() {
           <button className={tab === 'list' ? 'on' : ''} onClick={() => setTab('list')}>Inventario</button>
           <button className={tab === 'add' ? 'on' : ''} onClick={() => setTab('add')}>＋ Agregar</button>
           <button className={tab === 'purchases' ? 'on' : ''} onClick={() => setTab('purchases')}>Compras</button>
+          <button className={tab === 'waste' ? 'on' : ''} onClick={() => setTab('waste')}>Pérdidas</button>
           <button className={tab === 'settings' ? 'on' : ''} onClick={() => setTab('settings')}>Ajustes</button>
         </nav>
       )}

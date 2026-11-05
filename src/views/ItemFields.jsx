@@ -27,6 +27,14 @@ export default function ItemFields({ value, onChange, onPhotoFile }) {
         </label>
       </div>
       <label>
+        Costo por unidad (ARS)
+        <input type="number" min="0" max="9999999999.99" step="0.01" inputMode="decimal" value={value.unitCost ?? ''}
+          placeholder="Opcional" onChange={(e) => {
+            const cost = Number(e.target.value)
+            set('unitCost', e.target.value === '' ? null : Number.isFinite(cost) && cost >= 0 && cost <= 9999999999.99 ? cost : null)
+          }} />
+      </label>
+      <label>
         Avisar con anticipación
         <select value={value.notifyDays} onChange={(e) => set('notifyDays', Number(e.target.value))}>
           {NOTIFY_OPTIONS.map((d) => <option key={d} value={d}>{d} días antes</option>)}

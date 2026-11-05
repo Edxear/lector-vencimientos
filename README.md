@@ -15,6 +15,7 @@ La idea central no es solo registrar productos: es transformar un problema cotid
 - Ajusta alertas según el uso del usuario: hogar o comercio, con contexto y ubicación opcional.
 - Organiza productos por áreas como almacén, frío, congelados, bazar, verdulería, carnicería y devolución proveedor.
 - Permite importar productos desde tickets o texto para acelerar el alta masiva.
+- Registra el costo por unidad y permite marcar lotes vencidos como desperdicio para consultar las pérdidas en una analítica mensual.
 
 ## Cambios significativos que se hacen en la app
 
@@ -141,6 +142,9 @@ La aplicación se divide en varios bloques:
 - Permiso de ubicación y uso del entorno (hogar/comercio).
 - Cron de notificaciones y mensajes contextuales.
 - Importación de compras desde texto, ticket o CSV.
+- Analítica de desperdicios por mes, basada en los lotes marcados explícitamente y en sus costos registrados.
+
+Para instalaciones existentes que ya aplicaron `migration_v2.sql`, ejecutar `supabase/migration_v3.sql` en Supabase > SQL Editor antes de desplegar esta versión. Las instalaciones nuevas ya incluyen estos campos en `schema.sql`. Los productos anteriores no tienen costo asignado y no se incluirán en los importes hasta que se complete ese dato.
 
 
 ## Resultado final

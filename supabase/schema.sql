@@ -18,6 +18,8 @@ create table if not exists public.items (
   expiry_date date not null,
   quantity int not null default 1,
   location text default '',
+  unit_cost numeric(12,2),
+  wasted_at timestamptz,
   notified_at timestamptz,
   created_at timestamptz not null default now()
 );
