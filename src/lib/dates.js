@@ -5,20 +5,20 @@
 export const DATE_ORDERS = ['DMY', 'MDY', 'YMD']
 
 const MONTHS = {
-  ENE: 1, ENERO: 1, JAN: 1, JANUARY: 1,
-  FEB: 2, FEBRERO: 2, FEBRUARY: 2,
-  MAR: 3, MARZO: 3, MARCH: 3,
+  ENE: 1, ENERO: 1, ENR: 1, JAN: 1, JANUARY: 1,
+  FEB: 2, FEBRERO: 2, FEBRUARY: 2, FBR: 2,
+  MAR: 3, MARZO: 3, MARCH: 3, MRT: 3, MZO: 3,
   ABR: 4, ABRIL: 4, APR: 4, APRIL: 4,
-  MAY: 5, MAYO: 5,
+  MAY: 5, MAYO: 5, MAI: 5,
   JUN: 6, JUNIO: 6, JUNE: 6,
-  JUL: 7, JULIO: 7, JULY: 7,
-  AGO: 8, AGOSTO: 8, AUG: 8, AUGUST: 8,
-  SEP: 9, SEPT: 9, SET: 9, SEPTIEMBRE: 9, SETIEMBRE: 9, SEPTEMBER: 9,
+  JUL: 7, JULIO: 7, JULY: 7, JLY: 7,
+  AGO: 8, AGOSTO: 8, AGS: 8, AUG: 8, AUGUST: 8,
+  SEP: 9, SEPT: 9, SET: 9, SEPTIEMBRE: 9, SETIEMBRE: 9, SEPTEMBER: 9, SEPE: 9,
   OCT: 10, OCTUBRE: 10, OCTOBER: 10,
-  NOV: 11, NOVIEMBRE: 11, NOVEMBER: 11,
-  DIC: 12, DICIEMBRE: 12, DEC: 12, DECEMBER: 12,
+  NOV: 11, NOVIEMBRE: 11, NOVEMBER: 11, NO: 11,
+  DIC: 12, DICIEMBRE: 12, DEC: 12, DECEMBER: 12, DEZ: 12,
 }
-const SHORT = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC', 'JAN', 'APR', 'AUG', 'DEC']
+const SHORT = ['ENE', 'ENR', 'FEB', 'FBR', 'MAR', 'MRT', 'MZO', 'ABR', 'MAY', 'MAI', 'JUN', 'JUL', 'JLY', 'AGO', 'AGS', 'SEP', 'SEPT', 'SET', 'OCT', 'NOV', 'NO', 'DIC', 'DEZ', 'JAN', 'APR', 'AUG', 'DEC']
 // Palabras de etiqueta que no deben confundirse con meses al corregir errores del OCR
 const NOT_MONTH = new Set(['FAB', 'MAN', 'LOT', 'EXP', 'USE', 'VTO', 'PRD', 'ELA', 'BEST', 'MFG', 'MFD', 'ENV', 'CAD', 'PROD'])
 
@@ -46,8 +46,11 @@ function matchMonth(word) {
 // Corrige confusiones típicas del OCR (O→0, I→1, S→5…) solo en tokens pegados a números
 const CONFUSE = { O: '0', Q: '0', D: '0', I: '1', L: '1', '|': '1', '!': '1', Z: '2', S: '5', B: '8', G: '6' }
 export function normalizeOcr(text) {
-  const t = String(text).toUpperCase().replace(/[\r\n\t]+/g, ' ').replace(/[·•]/g, '.').replace(/\\/g, '/')
+  const raw = String(text)
+  const t = raw.toUpperCase().replace(/[\r\n\t]+/g, ' ').replace(/[·•]/g, '.').replace(/\\/g, '/')
   return t.replace(/(?<![A-Z])[0-9OQDIL|!ZSBG]+(?![A-Z])/g, (w, off) => {
+    const token = raw.slice(off, off + w.length)
+    if (/^L(?=[0-9/\.\-])/.test(token)) return w
     if (/^\d+$/.test(w)) return w
     const before = t.slice(Math.max(0, off - 3), off)
     const after = t.slice(off + w.length, off + w.length + 3)
@@ -121,6 +124,16 @@ const FORMATS = [
     base: 34,
     re: /(?<![\d/.\-])(\d{2,4}) (\d{2}) (\d{2,4})(?![\d/.\-])/g,
     read: (m) => triples(m[1], m[2], m[3]),
+  },
+  {
+    id: 'day-month-name-year-compact',
+    base: 60,
+    re: new RegExp(`(?<!\\d)(\\d{1,2})\\s?${MON}\\s?(\\d{2,4})(?!\\d)`, 'g'),
+    read: (m) => {
+      const mo = matchMonth(m[2])
+      const v = mo && mkDate(year(m[3]), mo.month, Number(m[1]))
+      return v ? [{ ...v, order: 'DMY', penalty: mo.fuzzy ? 8 : 0 }] : []
+    },
   },
   {
     id: 'day-month-name-year',
