@@ -1,7 +1,11 @@
-export async function lookupOpenFoodFacts(ean) {
+const LOOKUP_TIMEOUT_MS = 8000
+
+export async function lookupOpenFoodFacts(ean, { signal } = {}) {
+  const timeout = AbortSignal.timeout(LOOKUP_TIMEOUT_MS)
   try {
     const res = await fetch(
       `https://world.openfoodfacts.org/api/v2/product/${ean}.json?fields=product_name,brands,quantity,image_front_small_url,categories`,
+      { signal: signal ? AbortSignal.any([signal, timeout]) : timeout },
     )
     if (!res.ok) return null
     const data = await res.json()

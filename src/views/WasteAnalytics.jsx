@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, updateItem } from '../lib/db'
 import { getWasteAnalytics, formatWasteCurrency } from '../lib/waste'
@@ -11,9 +11,12 @@ export default function WasteAnalytics() {
     return wasted.map((item, index) => ({ ...item, product: products[index] }))
   }, [])
 
+  const analytics = useMemo(() => (items ? getWasteAnalytics(items) : null), [items])
+  const sortedItems = useMemo(() => (items ? [...items].sort((a, b) => b.wastedAt - a.wastedAt) : []), [items])
+
   if (!items) return null
 
-  const { months, totalLoss, pricedLots, unpricedLots } = getWasteAnalytics(items)
+  const { months, totalLoss, pricedLots, unpricedLots } = analytics
   const max = Math.max(1, ...months.map((month) => month.total))
 
   async function restore(item) {
@@ -62,7 +65,7 @@ export default function WasteAnalytics() {
           <p className="msg">Todavía no hay pérdidas registradas. Marca como desperdiciado un producto vencido para empezar a medirlas.</p>
         ) : (
           <ul className="list">
-            {[...items].sort((a, b) => b.wastedAt - a.wastedAt).map((item) => (
+            {sortedItems.map((item) => (
               <li className="row waste-row" key={item.id}>
                 <div className="info">
                   <strong>{item.product?.name || item.ean}</strong>

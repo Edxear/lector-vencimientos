@@ -76,7 +76,7 @@ export default function PurchaseImportView() {
   return (
     <div className="card">
       <h3>Importar compras</h3>
-      <p className="hint">Fase 1: ticket OCR · Fase 2: plantillas por supermercado · Fase 3: compras online / CSV / texto</p>
+      <p className="hint">Importá productos desde un ticket (foto), una compra online, un CSV o texto pegado.</p>
 
       <div className="two">
         <label>

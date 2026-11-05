@@ -111,13 +111,18 @@ export function flush() {
           job.op === 'delete'
             ? await q.delete().eq('id', job.row.id)
             : await q.upsert(job.row, job.table === 'products' ? { onConflict: 'user_id,ean' } : undefined)
-        if (error) return
+        if (error) {
+          console.warn('Sync fallido:', job.table, error.message)
+          return
+        }
         await db.outbox.delete(job.seq)
       }
     })().finally(() => { flushing = null })
   }
   return flushing
 }
+
+export const pendingChanges = () => db.outbox.count()
 
 // Baja el estado de la nube. Solo reemplaza lo local si no hay cambios pendientes.
 export async function pull() {

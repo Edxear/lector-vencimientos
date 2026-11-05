@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { exportAll, flush, clearLocal } from '../lib/db'
+import { exportAll, flush, clearLocal, pendingChanges } from '../lib/db'
 import { getPushState, enablePush, disablePush } from '../lib/push'
 import {
   NOTIFY_OPTIONS,
@@ -61,6 +61,16 @@ export default function SettingsView({ email, onLogout }) {
       setErr(e.message)
     }
     setState(await getPushState())
+  }
+
+  async function logout() {
+    await flush()
+    const pending = await pendingChanges()
+    if (pending > 0 && !confirm(`Hay ${pending} cambios que todavía no se subieron. Si cerrás sesión ahora se perderán. ¿Cerrar sesión igual?`)) return
+    await disablePush().catch(() => { })
+    await supabase.auth.signOut()
+    await clearLocal()
+    onLogout?.()
   }
 
   async function exportJson() {
@@ -178,7 +188,7 @@ export default function SettingsView({ email, onLogout }) {
         <h3>Cuenta</h3>
         <p className="hint">{email}</p>
         <button className="btn" onClick={exportJson}>Exportar datos (JSON)</button>
-        <button className="btn danger" onClick={async () => { await flush(); await disablePush().catch(() => { }); await supabase.auth.signOut(); await clearLocal(); onLogout?.() }}>
+        <button className="btn danger" onClick={logout}>
           Cerrar sesión
         </button>
       </div>

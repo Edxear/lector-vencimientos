@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import InventoryList from './views/InventoryList'
 import AddFlow from './views/AddFlow'
 import PurchaseImportView from './views/PurchaseImportView'
@@ -7,13 +8,23 @@ import SettingsView from './views/SettingsView'
 import WasteAnalytics from './views/WasteAnalytics'
 import Logo from './views/Logo'
 import { supabase } from './lib/supabase'
-import { pull } from './lib/db'
+import { db, pull, flush } from './lib/db'
 import { checkExpiringNow } from './lib/notifications'
 import { syncPushSubscription } from './lib/push'
 
 export default function App() {
   const [tab, setTab] = useState('list')
   const [session, setSession] = useState(undefined)
+  const pending = useLiveQuery(() => db.outbox.count(), [], 0)
+  const [online, setOnline] = useState(navigator.onLine)
+
+  useEffect(() => {
+    const on = () => setOnline(true)
+    const off = () => setOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
 
   useEffect(() => {
     navigator.storage?.persist?.()
@@ -41,6 +52,16 @@ export default function App() {
         <Logo />
         <h1>Lector Vencimientos</h1>
       </header>
+      {session && pending > 0 && (
+        <div className="sync-banner" role="status">
+          <span>
+            {online
+              ? `${pending} ${pending === 1 ? 'cambio' : 'cambios'} sin sincronizar.`
+              : `Sin conexión: ${pending} ${pending === 1 ? 'cambio se guardará' : 'cambios se guardarán'} al volver internet.`}
+          </span>
+          {online && <button type="button" className="btn small" onClick={() => flush()}>Reintentar</button>}
+        </div>
+      )}
       <main>
         {!session ? (
           <AuthView />

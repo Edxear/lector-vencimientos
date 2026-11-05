@@ -42,13 +42,24 @@ export default function InventoryList() {
       .filter((r) => !q || [r.product?.name, r.product?.brand, r.product?.category, r.location, r.notes].some((v) => v?.toLowerCase().includes(q)))
   }, [rows, query, area])
 
+  const stats = useMemo(() => {
+    const counts = { expired: 0, soon: 0, none: 0, byArea: {} }
+    for (const r of rows || []) {
+      const d = daysUntil(r.expiryDate)
+      if (d < 0) counts.expired++
+      else if (d <= (r.notifyDays ?? 15)) counts.soon++
+      if (r.location) counts.byArea[r.location] = (counts.byArea[r.location] || 0) + 1
+      else counts.none++
+    }
+    return counts
+  }, [rows])
+
   if (!rows) return null
 
   const areaLabel = area === '' ? 'Todas' : area === '__none' ? 'Sin área' : area
   const pickArea = (a) => { setArea(a); setMenuOpen(false) }
 
-  const expired = rows.filter((r) => daysUntil(r.expiryDate) < 0).length
-  const soon = rows.filter((r) => { const d = daysUntil(r.expiryDate); return d >= 0 && d <= (r.notifyDays ?? 15) }).length
+  const { expired, soon } = stats
 
   return (
     <div>
@@ -78,12 +89,12 @@ export default function InventoryList() {
             </button>
             {areas.map((a) => (
               <button type="button" key={a} className={`drawer-item ${area === a ? 'on' : ''}`} onClick={() => pickArea(a)}>
-                {a} <span>{rows.filter((r) => r.location === a).length}</span>
+                {a} <span>{stats.byArea[a] || 0}</span>
               </button>
             ))}
-            {rows.some((r) => !r.location) && (
+            {stats.none > 0 && (
               <button type="button" className={`drawer-item ${area === '__none' ? 'on' : ''}`} onClick={() => pickArea('__none')}>
-                Sin área <span>{rows.filter((r) => !r.location).length}</span>
+                Sin área <span>{stats.none}</span>
               </button>
             )}
           </aside>

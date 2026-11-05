@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ScannerView from './ScannerView'
 import ExpiryCapture from './ExpiryCapture'
 import ProductFields from './ProductFields'
@@ -10,19 +10,31 @@ export default function AddFlow({ onDone }) {
   const [step, setStep] = useState('scan')
   const [product, setProduct] = useState(null)
   const [manualEan, setManualEan] = useState('')
+  const abortRef = useRef(null)
+
+  useEffect(() => () => abortRef.current?.abort(), [])
 
   const handleEan = useCallback(async (ean) => {
+    abortRef.current?.abort()
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
     setStep('lookup')
     let p = await getProduct(ean)
     let source = 'cache'
     if (!p) {
-      p = await lookupOpenFoodFacts(ean)
+      p = await lookupOpenFoodFacts(ean, { signal: ctrl.signal })
       source = p ? 'openfoodfacts' : 'manual'
     }
+    if (ctrl.signal.aborted) return
     logEvent('scan', { ean, source })
     setProduct(p || { ean, name: '', brand: '', content: '', category: '', imageUrl: '', source: 'manual' })
     setStep('confirm-product')
   }, [])
+
+  function cancelLookup() {
+    abortRef.current?.abort()
+    setStep('scan')
+  }
 
   async function confirmProduct() {
     await saveProduct(product)
@@ -50,14 +62,23 @@ export default function AddFlow({ onDone }) {
       </>
     )
 
-  if (step === 'lookup') return <p className="msg">Buscando producto…</p>
+  if (step === 'lookup')
+    return (
+      <div className="card">
+        <p className="msg" role="status">Buscando producto…</p>
+        <button className="btn" onClick={cancelLookup}>Cancelar</button>
+      </div>
+    )
 
   if (step === 'confirm-product')
     return (
       <div className="card">
         <h3>Producto</h3>
         <ProductFields value={product} onChange={setProduct} />
-        <button className="btn primary" disabled={!product.name.trim()} onClick={confirmProduct}>Continuar</button>
+        <div className="btn-row">
+          <button className="btn" onClick={() => setStep('scan')}>Volver</button>
+          <button className="btn primary" disabled={!product.name.trim()} onClick={confirmProduct}>Continuar</button>
+        </div>
       </div>
     )
 
