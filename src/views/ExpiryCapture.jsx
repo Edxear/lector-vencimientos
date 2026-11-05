@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { recognizeExpiry } from '../lib/ocr'
 import { mergeCandidates, formatDisplay } from '../lib/dates'
 import { getDefaultNotifyDays, getDateOrder } from '../lib/settings'
 import ItemFields from './ItemFields'
+
+const EXAMPLE_FORMATS = ['15/03/27', '03/2027', '15MAR27', '14ABR27', 'L08/27']
 
 function Chips({ list, selected, onPick }) {
   return (
@@ -48,18 +50,28 @@ export default function ExpiryCapture({ onConfirm }) {
     () => (typed.trim() ? mergeCandidates([typed], { order: getDateOrder() }) : []),
     [typed],
   )
-  const ambiguous = candidates[0]?.ambiguous
+
+  useEffect(() => {
+    if (!typed.trim()) return
+    if (fromTyped[0] && (!item.expiryDate || item.expiryDate !== fromTyped[0].iso)) {
+      setItem((cur) => ({ ...cur, expiryDate: fromTyped[0].iso }))
+    }
+  }, [typed, fromTyped, item.expiryDate])
+
+  const ambiguous = candidates[0]?.ambiguous || fromTyped[0]?.ambiguous
   const noResult = !busy && raw && candidates.length === 0
+  const selectedDate = item.expiryDate ? formatDisplay(item.expiryDate) : 'Sin fecha aún'
 
   return (
     <div className="card">
       <h3>Vencimiento</h3>
-      <p className="hint">Escanea la fecha y recuadra solo ese texto. Se entienden formatos como 15/03/27, 27-03-15, 15MAR27, 03/2027 o VENC 15 MAR 2027.</p>
+      <p className="hint">Escanea la fecha y recuadra solo ese texto. Acepta formatos como 15/03/27, 03/2027, 15MAR27, 14ABR27, L08/27 o VENC 15 MAR 2027.</p>
       {busy && <p className="msg">{busy}</p>}
+      <p className="hint"><strong>Fecha seleccionada:</strong> {selectedDate}</p>
       {candidates.length > 0 && (
         <>
           <Chips list={candidates} selected={item.expiryDate} onPick={(iso) => setItem({ ...item, expiryDate: iso })} />
-          {ambiguous && <p className="hint warn">La fecha puede leerse de dos formas. Elige la correcta.</p>}
+          {ambiguous && <p className="hint warn">La fecha puede leerse de dos formas. Elige la correcta antes de guardar.</p>}
         </>
       )}
       {noResult && <p className="hint warn">No pude reconocer una fecha. Vuelve a recuadrarla o escríbela abajo.</p>}
@@ -69,8 +81,18 @@ export default function ExpiryCapture({ onConfirm }) {
         <input type="text" value={typed} placeholder="Ej: 15MAR27, 03/27, 2027-03-15"
           autoCapitalize="characters" onChange={(e) => setTyped(e.target.value)} />
       </label>
+      <div className="chips cand">
+        {EXAMPLE_FORMATS.map((example) => (
+          <button type="button" key={example} className="chip" onClick={() => setTyped(example)}>
+            {example}
+          </button>
+        ))}
+      </div>
       {fromTyped.length > 0 && (
-        <Chips list={fromTyped} selected={item.expiryDate} onPick={(iso) => setItem({ ...item, expiryDate: iso })} />
+        <>
+          <Chips list={fromTyped} selected={item.expiryDate} onPick={(iso) => setItem({ ...item, expiryDate: iso })} />
+          {ambiguous && <p className="hint warn">La lectura escrita es ambigua; revisá la sugerencia antes de guardar.</p>}
+        </>
       )}
       {raw && <details><summary>Texto leído</summary><pre>{raw}</pre></details>}
       <button className="btn primary" disabled={!item.expiryDate || !!busy}
