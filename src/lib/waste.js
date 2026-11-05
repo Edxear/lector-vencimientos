@@ -1,3 +1,19 @@
+export const REUSE_LABELS = ['Cocinado', 'Congelado', 'Donado', 'Compartido', 'Devuelto a proveedor', 'Consumido a tiempo']
+
+// Momento en que el lote pasó a estar vencido: el inicio del día siguiente a su fecha de vencimiento
+export function expiredAt(expiryDate) {
+  const [y, m, d] = String(expiryDate || '').split('-').map(Number)
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d + 1).getTime()
+}
+
+// Un lote vencido se registra solo como pérdida, salvo que ya tenga destino o el usuario lo haya conservado
+export function shouldAutoWaste(item, now = Date.now()) {
+  if (item.wastedAt || item.reusedAt || item.keepActive) return false
+  const at = expiredAt(item.expiryDate)
+  return at != null && at <= now
+}
+
 export function getWasteAnalytics(items, now = new Date()) {
   const months = []
   for (let offset = 5; offset >= 0; offset -= 1) {
@@ -13,6 +29,7 @@ export function getWasteAnalytics(items, now = new Date()) {
   let totalLoss = 0
   let pricedLots = 0
   let unpricedLots = 0
+  const byArea = {}
   for (const item of items) {
     if (!item.wastedAt) continue
     const quantity = Number(item.quantity)
@@ -27,6 +44,10 @@ export function getWasteAnalytics(items, now = new Date()) {
     } else {
       unpricedLots += 1
     }
+    const area = item.location || 'Sin área'
+    byArea[area] ||= { area, total: 0, lots: 0 }
+    byArea[area].total += safeAmount
+    byArea[area].lots += 1
 
     const date = new Date(item.wastedAt)
     if (Number.isNaN(date.getTime())) continue
@@ -37,7 +58,7 @@ export function getWasteAnalytics(items, now = new Date()) {
     else month.unpriced += 1
   }
 
-  return { months, totalLoss, pricedLots, unpricedLots }
+  return { months, totalLoss, pricedLots, unpricedLots, byArea: Object.values(byArea).sort((a, b) => b.total - a.total || b.lots - a.lots) }
 }
 
 export function formatWasteCurrency(amount) {

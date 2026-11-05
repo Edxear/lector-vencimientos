@@ -24,7 +24,7 @@ export default function InventoryList() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   const rows = useLiveQuery(async () => {
-    const items = (await db.items.orderBy('expiryDate').toArray()).filter((item) => !item.wastedAt)
+    const items = (await db.items.orderBy('expiryDate').toArray()).filter((item) => !item.wastedAt && !item.reusedAt)
     const products = await db.products.bulkGet(items.map((i) => i.ean))
     return items.map((it, i) => ({ ...it, product: products[i] }))
   }, [])
@@ -43,16 +43,18 @@ export default function InventoryList() {
   }, [rows, query, area])
 
   const stats = useMemo(() => {
-    const counts = { expired: 0, soon: 0, none: 0, byArea: {} }
+    const counts = { total: 0, expired: 0, soon: 0, none: 0, byArea: {} }
     for (const r of rows || []) {
+      if (r.location) counts.byArea[r.location] = (counts.byArea[r.location] || 0) + 1
+      else counts.none++
+      if (area && (area === '__none' ? r.location : r.location !== area)) continue
+      counts.total++
       const d = daysUntil(r.expiryDate)
       if (d < 0) counts.expired++
       else if (d <= (r.notifyDays ?? 15)) counts.soon++
-      if (r.location) counts.byArea[r.location] = (counts.byArea[r.location] || 0) + 1
-      else counts.none++
     }
     return counts
-  }, [rows])
+  }, [rows, area])
 
   if (!rows) return null
 
@@ -64,7 +66,7 @@ export default function InventoryList() {
   return (
     <div>
       <div className="summary">
-        <div><strong>{rows.length}</strong><span>Productos</span></div>
+        <div><strong>{stats.total}</strong><span>Productos</span></div>
         <div className="y"><strong>{soon}</strong><span>Por vencer</span></div>
         <div className="r"><strong>{expired}</strong><span>Vencidos</span></div>
       </div>

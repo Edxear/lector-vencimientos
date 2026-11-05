@@ -20,6 +20,9 @@ create table if not exists public.items (
   location text default '',
   unit_cost numeric(12,2),
   wasted_at timestamptz,
+  reused_at timestamptz,
+  reuse_label text default '',
+  keep_active boolean not null default false,
   notified_at timestamptz,
   created_at timestamptz not null default now()
 );

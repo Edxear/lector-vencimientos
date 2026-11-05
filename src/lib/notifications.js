@@ -58,7 +58,7 @@ export async function checkExpiringNow() {
   const items = await db.items.toArray()
   const locationContext = await getLocationContext()
   for (const it of items) {
-    if (it.notifiedAt) continue
+    if (it.notifiedAt || it.wastedAt || it.reusedAt) continue
     const left = daysUntil(it.expiryDate)
     if (left <= (it.notifyDays ?? 15)) {
       const p = await db.products.get(it.ean)

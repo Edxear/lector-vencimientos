@@ -1,5 +1,6 @@
 import Dexie from 'dexie'
 import { supabase } from './supabase'
+import { shouldAutoWaste, expiredAt } from './waste'
 
 export const db = new Dexie('lector-vencimientos')
 
@@ -24,6 +25,9 @@ const toRemoteItem = (i) => ({
   notified_at: i.notifiedAt ? new Date(i.notifiedAt).toISOString() : null,
   unit_cost: i.unitCost ?? null,
   wasted_at: i.wastedAt ? new Date(i.wastedAt).toISOString() : null,
+  reused_at: i.reusedAt ? new Date(i.reusedAt).toISOString() : null,
+  reuse_label: i.reuseLabel || '',
+  keep_active: !!i.keepActive,
 })
 const fromRemoteItem = (r) => ({
   id: r.id, ean: r.ean, expiryDate: r.expiry_date, quantity: r.quantity, location: r.location,
@@ -31,6 +35,9 @@ const fromRemoteItem = (r) => ({
   notifiedAt: r.notified_at ? Date.parse(r.notified_at) : null, addedAt: Date.parse(r.created_at),
   unitCost: r.unit_cost == null ? null : Number(r.unit_cost),
   wastedAt: r.wasted_at ? Date.parse(r.wasted_at) : null,
+  reusedAt: r.reused_at ? Date.parse(r.reused_at) : null,
+  reuseLabel: r.reuse_label || '',
+  keepActive: !!r.keep_active,
 })
 
 export const getProduct = (ean) => db.products.get(ean)
@@ -51,6 +58,9 @@ export async function addItem(data) {
     expiryPhoto: '',
     unitCost: null,
     wastedAt: null,
+    reusedAt: null,
+    reuseLabel: '',
+    keepActive: false,
     ...data,
     addedAt: Date.now(),
     notifiedAt: null,
@@ -81,6 +91,20 @@ export async function removeItem(id) {
   await db.items.delete(id)
   await db.outbox.add({ op: 'delete', table: 'items', row: { id } })
   flush()
+}
+
+// Registra como pérdida, con la fecha en que venció, todo lote vencido que no tenga destino
+let autoWasting = null
+export function autoWasteExpired() {
+  if (!autoWasting) {
+    autoWasting = (async () => {
+      const now = Date.now()
+      const due = (await db.items.toArray()).filter((item) => shouldAutoWaste(item, now))
+      for (const item of due) await updateItem(item.id, { wastedAt: expiredAt(item.expiryDate) })
+      return due.length
+    })().finally(() => { autoWasting = null })
+  }
+  return autoWasting
 }
 
 export async function logEvent(type, data = {}) {

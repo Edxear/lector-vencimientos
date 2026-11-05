@@ -9,7 +9,7 @@ const SettingsView = lazy(() => import('./views/SettingsView'))
 const WasteAnalytics = lazy(() => import('./views/WasteAnalytics'))
 import Logo from './views/Logo'
 import { supabase } from './lib/supabase'
-import { db, pull, flush } from './lib/db'
+import { db, pull, flush, autoWasteExpired } from './lib/db'
 import { checkExpiringNow } from './lib/notifications'
 import { syncPushSubscription } from './lib/push'
 
@@ -38,11 +38,18 @@ export default function App() {
 
   useEffect(() => {
     if (!userId) return
-    const sync = () => pull().then(checkExpiringNow)
+    const sync = () => pull().then(autoWasteExpired).then(checkExpiringNow)
     sync()
     syncPushSubscription()
+    const tick = () => { if (document.visibilityState === 'visible') autoWasteExpired() }
+    const timer = setInterval(tick, 10 * 60 * 1000)
+    document.addEventListener('visibilitychange', tick)
     window.addEventListener('online', sync)
-    return () => window.removeEventListener('online', sync)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', tick)
+      window.removeEventListener('online', sync)
+    }
   }, [userId])
 
   if (session === undefined) return null

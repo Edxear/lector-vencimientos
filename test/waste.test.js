@@ -1,6 +1,33 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { getWasteAnalytics, formatWasteCurrency } from '../src/lib/waste.js'
+import { getWasteAnalytics, formatWasteCurrency, shouldAutoWaste, expiredAt } from '../src/lib/waste.js'
+
+test('un lote vencido se registra solo como pérdida con la fecha en que venció', () => {
+  const now = new Date(2026, 10, 5, 10).getTime()
+  assert.equal(shouldAutoWaste({ expiryDate: '2026-11-04' }, now), true)
+  assert.equal(expiredAt('2026-11-04'), new Date(2026, 10, 5).getTime())
+  assert.equal(shouldAutoWaste({ expiryDate: '2026-11-05' }, now), false, 'vence hoy: todavía sirve')
+  assert.equal(shouldAutoWaste({ expiryDate: '2026-11-06' }, now), false)
+})
+
+test('no se descarta solo un lote con destino o conservado a propósito', () => {
+  const now = new Date(2026, 10, 5, 10).getTime()
+  const base = { expiryDate: '2026-10-01' }
+  assert.equal(shouldAutoWaste({ ...base, wastedAt: 1 }, now), false)
+  assert.equal(shouldAutoWaste({ ...base, reusedAt: 1 }, now), false)
+  assert.equal(shouldAutoWaste({ ...base, keepActive: true }, now), false)
+  assert.equal(shouldAutoWaste({ expiryDate: '' }, now), false)
+})
+
+test('desglosa las pérdidas por área y no cuenta lotes reutilizados', () => {
+  const { byArea, totalLoss } = getWasteAnalytics([
+    { wastedAt: new Date(2026, 10, 4).getTime(), unitCost: 10, quantity: 2, location: 'Frío' },
+    { wastedAt: new Date(2026, 10, 4).getTime(), unitCost: 5, quantity: 1, location: 'Almacén' },
+    { wastedAt: null, reusedAt: Date.now(), unitCost: 999, quantity: 1, location: 'Frío' },
+  ], new Date(2026, 10, 15))
+  assert.equal(totalLoss, 25)
+  assert.deepEqual(byArea.map((a) => [a.area, a.total, a.lots]), [['Frío', 20, 1], ['Almacén', 5, 1]])
+})
 
 test('agrupa pérdidas por mes y multiplica el costo por la cantidad', () => {
   const { months, totalLoss, pricedLots, unpricedLots } = getWasteAnalytics([
