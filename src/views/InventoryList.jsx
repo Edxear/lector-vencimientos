@@ -21,6 +21,7 @@ export default function InventoryList() {
   const [editing, setEditing] = useState(null)
   const [query, setQuery] = useState('')
   const [area, setArea] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const rows = useLiveQuery(async () => {
     const items = (await db.items.orderBy('expiryDate').toArray()).filter((item) => !item.wastedAt)
@@ -43,6 +44,9 @@ export default function InventoryList() {
 
   if (!rows) return null
 
+  const areaLabel = area === '' ? 'Todas' : area === '__none' ? 'Sin área' : area
+  const pickArea = (a) => { setArea(a); setMenuOpen(false) }
+
   const expired = rows.filter((r) => daysUntil(r.expiryDate) < 0).length
   const soon = rows.filter((r) => { const d = daysUntil(r.expiryDate); return d >= 0 && d <= (r.notifyDays ?? 15) }).length
 
@@ -53,19 +57,38 @@ export default function InventoryList() {
         <div className="y"><strong>{soon}</strong><span>Por vencer</span></div>
         <div className="r"><strong>{expired}</strong><span>Vencidos</span></div>
       </div>
-      <input className="search" type="search" placeholder="Buscar por nombre, marca, área…"
-        value={query} onChange={(e) => setQuery(e.target.value)} />
-      <div className="chips areas">
-        <button type="button" className={`chip ${area === '' ? 'on' : ''}`} onClick={() => setArea('')}>Todas</button>
-        {areas.map((a) => (
-          <button type="button" key={a} className={`chip ${area === a ? 'on' : ''}`} onClick={() => setArea(a)}>
-            {a} ({rows.filter((r) => r.location === a).length})
-          </button>
-        ))}
-        {rows.some((r) => !r.location) && (
-          <button type="button" className={`chip ${area === '__none' ? 'on' : ''}`} onClick={() => setArea('__none')}>Sin área</button>
-        )}
+      <div className="toolbar">
+        <button type="button" className="burger" aria-label="Menú de áreas" aria-expanded={menuOpen}
+          onClick={() => setMenuOpen(true)}>
+          <span /><span /><span />
+        </button>
+        <input className="search" type="search" placeholder="Buscar por nombre, marca, área…"
+          value={query} onChange={(e) => setQuery(e.target.value)} />
       </div>
+      <p className="hint area-current">Área: <strong>{areaLabel}</strong></p>
+      {menuOpen && (
+        <div className="drawer-backdrop" onClick={() => setMenuOpen(false)}>
+          <aside className="drawer" role="dialog" aria-label="Áreas" onClick={(e) => e.stopPropagation()}>
+            <div className="drawer-head">
+              <h3>Áreas</h3>
+              <button type="button" className="close-x" aria-label="Cerrar menú" onClick={() => setMenuOpen(false)}>✕</button>
+            </div>
+            <button type="button" className={`drawer-item ${area === '' ? 'on' : ''}`} onClick={() => pickArea('')}>
+              Todas <span>{rows.length}</span>
+            </button>
+            {areas.map((a) => (
+              <button type="button" key={a} className={`drawer-item ${area === a ? 'on' : ''}`} onClick={() => pickArea(a)}>
+                {a} <span>{rows.filter((r) => r.location === a).length}</span>
+              </button>
+            ))}
+            {rows.some((r) => !r.location) && (
+              <button type="button" className={`drawer-item ${area === '__none' ? 'on' : ''}`} onClick={() => pickArea('__none')}>
+                Sin área <span>{rows.filter((r) => !r.location).length}</span>
+              </button>
+            )}
+          </aside>
+        </div>
+      )}
       {rows.length === 0 && <p className="msg">Todavía no hay productos. Usa “Agregar” para escanear el primero.</p>}
       <ul className="list">
         {filtered.map((r) => {

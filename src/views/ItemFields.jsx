@@ -1,16 +1,23 @@
+import { useState } from 'react'
 import { NOTIFY_OPTIONS, LOCATIONS } from '../lib/settings'
 import PhotoField from './PhotoField'
 
 // Datos propios de cada unidad/lote: vencimiento, cantidad, ubicación, aviso, notas y foto de la fecha
 export default function ItemFields({ value, onChange, onPhotoFile }) {
+  const [scanSignal, setScanSignal] = useState(0)
   const set = (k, v) => onChange({ ...value, [k]: v })
 
   return (
     <>
-      <label>
-        Fecha de vencimiento
-        <input type="date" value={value.expiryDate} onChange={(e) => set('expiryDate', e.target.value)} />
-      </label>
+      <div className="date-row">
+        <label>
+          Fecha de vencimiento
+          <input type="date" value={value.expiryDate} onChange={(e) => set('expiryDate', e.target.value)} />
+        </label>
+        <button type="button" className="btn small scan-btn" onClick={() => setScanSignal((n) => n + 1)}>
+          📷 {value.expiryPhoto ? 'Reescanear' : 'Escanear'}
+        </button>
+      </div>
       <div className="two">
         <label>
           Cantidad
@@ -45,7 +52,7 @@ export default function ItemFields({ value, onChange, onPhotoFile }) {
         <textarea rows="2" value={value.notes} placeholder="Ej: abierto el 10/11, lote 4521"
           onChange={(e) => set('notes', e.target.value)} />
       </label>
-      <PhotoField label="Foto de la fecha" value={value.expiryPhoto} autoMax={1000} crop
+      <PhotoField label="Foto de la fecha" value={value.expiryPhoto} autoMax={1000} crop scanSignal={scanSignal}
         onChange={(v) => set('expiryPhoto', v)} onFile={onPhotoFile} />
     </>
   )

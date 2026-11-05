@@ -13,7 +13,6 @@ export default function EditItem({ row, onClose }) {
     expiryDate: row.expiryDate, quantity: row.quantity, location: row.location || '', notes: row.notes || '',
     notifyDays: row.notifyDays ?? 15, expiryPhoto: row.expiryPhoto || '', unitCost: row.unitCost ?? null,
   })
-
   const [error, setError] = useState('')
 
   async function save() {
@@ -29,7 +28,7 @@ export default function EditItem({ row, onClose }) {
   }
 
   async function markAsWasted() {
-    if (!confirm('\u00bfRegistrar este lote como desperdiciado? Se conservar\u00e1 en la anal\u00edtica de p\u00e9rdidas.')) return
+    if (!confirm('¿Registrar este lote como desperdiciado? Se conservará en la analítica de pérdidas.')) return
     setError('')
     try {
       await updateItem(row.id, { wastedAt: Date.now() })
@@ -42,7 +41,10 @@ export default function EditItem({ row, onClose }) {
   return (
     <div className="modal" role="dialog" aria-modal="true">
       <div className="sheet tall">
-        <h3>Editar producto</h3>
+        <div className="sheet-head">
+          <h3>Editar producto</h3>
+          <button type="button" className="close-x" aria-label="Cerrar sin guardar" onClick={onClose}>✕</button>
+        </div>
         <ProductFields value={product} onChange={setProduct} />
         <hr />
         <ItemFields value={item} onChange={setItem} />

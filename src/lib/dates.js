@@ -22,7 +22,7 @@ const SHORT = ['ENE', 'ENR', 'FEB', 'FBR', 'MAR', 'MRT', 'MZO', 'ABR', 'MAY', 'M
 // Palabras de etiqueta que no deben confundirse con meses al corregir errores del OCR
 const NOT_MONTH = new Set(['FAB', 'MAN', 'LOT', 'EXP', 'USE', 'VTO', 'PRD', 'ELA', 'BEST', 'MFG', 'MFD', 'ENV', 'CAD', 'PROD'])
 
-const EXP_LABELS = /(VENC\w*|VTO|VCTO|VENCE|EXP\w*|BEST\s*BEFORE|BEST\s*BEF|USE\s*BY|BB|BBE|CONSUMIR|CONSUMO\s*PREF\w*|PREF\w*|CADUC\w*|CAD|VALID\w*|ANTES\s*DE|MHD)/
+const EXP_LABELS = /(V(?:TO|T0)?|VCTO|VENC\w*|VENCE|EXP\w*|BEST\s*BEFORE|BEST\s*BEF|USE\s*BY|BB|BBE|CONSUMIR|CONSUMO\s*PREF\w*|PREF\w*|CADUC\w*|CAD|VALID\w*|ANTES\s*DE|MHD)/
 const MFG_LABELS = /(ELAB\w*|FAB\w*|PROD\w*|MFG|MFD|MANUF\w*|PACKED|PKD|ENVAS\w*|ENV|EMB\w*)/
 
 const pad = (n) => String(n).padStart(2, '0')

@@ -1,17 +1,21 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ImageResizer from './ImageResizer'
 import CropCapture from './CropCapture'
 import { compressFile } from '../lib/image'
 
 // Foto con captura, miniatura ampliable y ajuste de tamaño.
 // Conserva el archivo original durante la sesión para poder volver a agrandar.
-export default function PhotoField({ label, value, onChange, onFile, autoMax = 800, crop = false }) {
+export default function PhotoField({ label, value, onChange, onFile, autoMax = 800, crop = false, scanSignal = 0 }) {
   const originalRef = useRef(null)
   const [resizing, setResizing] = useState(false)
   const [cropping, setCropping] = useState(false)
   const [recropSource, setRecropSource] = useState(null)
   const [zoom, setZoom] = useState(false)
   const [big, setBig] = useState(false)
+
+  useEffect(() => {
+    if (scanSignal > 0) { setRecropSource(null); setCropping(true) }
+  }, [scanSignal])
 
   async function handleFile(file) {
     originalRef.current = file
@@ -39,11 +43,7 @@ export default function PhotoField({ label, value, onChange, onFile, autoMax = 8
         </button>
       )}
       <div className="btn-row">
-        {crop ? (
-          <button type="button" className="btn small" onClick={() => setCropping(true)}>
-            📷 {value ? 'Nueva captura' : 'Escanear fecha'}
-          </button>
-        ) : (
+        {!crop && (
           <label className="btn small">
             📷 {value ? 'Nueva foto' : 'Tomar foto'}
             <input type="file" accept="image/*" capture="environment" onChange={pick} hidden />
