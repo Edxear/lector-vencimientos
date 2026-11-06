@@ -39,13 +39,13 @@ export default function AuthView() {
   return (
     <>
       <section className="card welcome">
-        <h3>Nunca más tires comida vencida</h3>
+        <h3>Vencimientos bajo control.</h3>
         <ol className="steps">
-          <li><strong>Escaneá</strong> el código de barras del producto.</li>
-          <li><strong>Fotografiá</strong> la fecha: la app la lee por vos.</li>
-          <li><strong>Recibí avisos</strong> antes de que venza.</li>
+          <li><strong>Escaneá</strong> el producto.</li>
+          <li><strong>Enfocá</strong> y listo.</li>
+          <li><strong>Alertas</strong> personalizadas.</li>
         </ol>
-        <p className="hint">Te pediremos acceso a la cámara para escanear y, si querés, a las notificaciones para avisarte. Tus datos funcionan sin conexión.</p>
+        <p className="hint">Usamos tu cámara solo para leer los códigos y fechas. Todo funciona sin internet y tus datos están seguros.</p>
       </section>
       <form className="card" onSubmit={submit}>
         <h3>{mode === 'in' ? 'Iniciar sesión' : 'Crear cuenta'}</h3>
