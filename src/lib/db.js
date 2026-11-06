@@ -120,14 +120,20 @@ export async function exportAll() {
 }
 
 let flushing = null
+export const SYNC_STATUS_EVENT = 'lector:sync-status'
+
+function reportSyncStatus(ok, message = '') {
+  window.dispatchEvent(new CustomEvent(SYNC_STATUS_EVENT, { detail: { ok, message } }))
+}
 
 // Envía a Supabase los cambios hechos offline, en orden
 export function flush() {
-  if (!navigator.onLine) return Promise.resolve()
+  if (!navigator.onLine) return Promise.resolve(false)
   if (!flushing) {
     flushing = (async () => {
-      const { data } = await supabase.auth.getSession()
-      if (!data.session) return
+      const { data, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      if (!data.session) return false
       const pending = await db.outbox.orderBy('seq').toArray()
       for (const job of pending) {
         const q = supabase.from(job.table)
@@ -135,13 +141,19 @@ export function flush() {
           job.op === 'delete'
             ? await q.delete().eq('id', job.row.id)
             : await q.upsert(job.row, job.table === 'products' ? { onConflict: 'user_id,ean' } : undefined)
-        if (error) {
-          console.warn('Sync fallido:', job.table, error.message)
-          return
-        }
+        if (error) throw error
         await db.outbox.delete(job.seq)
       }
-    })().finally(() => { flushing = null })
+      reportSyncStatus(true)
+      return true
+    })().catch((error) => {
+      console.error('Error de sincronización:', error)
+      reportSyncStatus(
+        false,
+        'No se pudieron sincronizar los cambios. Tus datos siguen guardados en este dispositivo; vuelve a intentarlo.',
+      )
+      return false
+    }).finally(() => { flushing = null })
   }
   return flushing
 }
@@ -157,7 +169,10 @@ export async function pull() {
     supabase.from('products').select('*'),
     supabase.from('items').select('*'),
   ])
-  if (p.error || i.error) return
+  if (p.error || i.error) {
+    console.error('Error al actualizar los datos desde la nube:', p.error || i.error)
+    throw new Error('No se pudieron actualizar los datos desde la nube.')
+  }
   await db.transaction('rw', db.products, db.items, db.outbox, async () => {
     if ((await db.outbox.count()) > 0) return
     await db.products.clear()

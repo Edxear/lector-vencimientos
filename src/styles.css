@@ -284,3 +284,40 @@ nav button:focus-visible {
 @media (max-width: 420px) {
   nav button { font-size: .75rem; padding: 12px 2px; white-space: nowrap; }
 }
+.purchase-import { gap: 16px; }
+.purchase-heading { display: grid; gap: 4px; }
+.purchase-heading h3 { color: var(--navy2); font-size: 1.2rem; }
+.purchase-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 5px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 14px; }
+.purchase-tab { display: grid; justify-items: center; gap: 2px; min-height: 52px; padding: 7px 4px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+.purchase-tab span { font-size: .9rem; font-weight: 650; }
+.purchase-tab small { font-size: .7rem; }
+.purchase-tab.on { background: #fff; color: var(--navy2); box-shadow: 0 2px 8px rgba(17, 94, 89, .12); }
+.purchase-dropzone { position: relative; border: 2px dashed #9bc9c2; border-radius: 16px; background: var(--surface-soft); transition: border-color .15s ease, background .15s ease; }
+.purchase-dropzone.dragging, .purchase-dropzone:focus-within { border-color: var(--navy); background: #e7f7f4; }
+.purchase-drop-label { min-height: 206px; padding: 24px 16px; display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 8px !important; color: var(--text) !important; text-align: center; cursor: pointer; }
+.purchase-drop-label strong { max-width: 100%; overflow-wrap: anywhere; font-size: .98rem; }
+.purchase-drop-label > span:not(.purchase-upload-icon) { color: var(--muted); font-size: .85rem; }
+.purchase-drop-label small { color: var(--muted); font-size: .75rem; }
+.purchase-upload-icon { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 4px; border-radius: 16px; background: #d8f3ee; color: var(--navy2); }
+.purchase-upload-icon svg { width: 30px; height: 30px; }
+.purchase-file-input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
+.purchase-text-label { display: grid; gap: 6px; color: var(--muted); font-size: .85rem; }
+.purchase-text-label textarea { resize: vertical; }
+.purchase-primary { width: 100%; min-height: 48px; font-weight: 700; }
+.purchase-help { text-align: center; margin-top: -8px; }
+.purchase-review-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.purchase-review-heading > div { display: grid; gap: 4px; }
+.purchase-review-heading h4, .purchase-complete h4 { margin: 0; color: var(--navy2); font-size: 1.05rem; }
+.purchase-preview { gap: 10px; }
+.purchase-preview-item { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
+.purchase-preview-item label { display: grid; gap: 5px; color: var(--muted); font-size: .8rem; }
+.purchase-preview-item .two { grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); }
+.purchase-preview-item .hint { font-size: .75rem; }
+.purchase-status.alert { color: var(--danger); }
+.purchase-complete { display: grid; justify-items: center; gap: 12px; padding: 12px 0 4px; text-align: center; }
+.purchase-complete > span { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: #d9f5e5; color: #15803d; font-size: 1.7rem; }
+@media (max-width: 360px) {
+  .purchase-tab span { font-size: .82rem; }
+  .purchase-review-heading { align-items: flex-start; }
+  .purchase-preview-item .two { grid-template-columns: 1fr; }
+}
