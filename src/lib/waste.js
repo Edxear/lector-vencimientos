@@ -61,6 +61,33 @@ export function getWasteAnalytics(items, now = new Date()) {
   return { months, totalLoss, pricedLots, unpricedLots, byArea: Object.values(byArea).sort((a, b) => b.total - a.total || b.lots - a.lots) }
 }
 
+export function getMonthlyReuseSavings(items, now = new Date()) {
+  const year = now.getFullYear()
+  const month = now.getMonth()
+  let total = 0
+  let pricedLots = 0
+  let totalLots = 0
+
+  for (const item of items) {
+    if (!item.reusedAt || item.wastedAt || item.reuseLabel !== 'Consumido a tiempo') continue
+    const reusedAt = new Date(item.reusedAt)
+    if (reusedAt.getFullYear() !== year || reusedAt.getMonth() !== month) continue
+    totalLots += 1
+
+    const quantity = Number(item.quantity)
+    const unitCost = Number(item.unitCost)
+    if (item.unitCost == null || !Number.isFinite(unitCost) || unitCost < 0
+      || !Number.isFinite(quantity) || quantity < 0) continue
+
+    const amount = unitCost * quantity
+    if (!Number.isFinite(amount)) continue
+    total += amount
+    pricedLots += 1
+  }
+
+  return { total, pricedLots, totalLots }
+}
+
 export function formatWasteCurrency(amount) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(amount)
 }

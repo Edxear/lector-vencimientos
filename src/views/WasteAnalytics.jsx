@@ -1,10 +1,24 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, updateItem } from '../lib/db'
-import { getWasteAnalytics, formatWasteCurrency, REUSE_LABELS } from '../lib/waste'
+import { getMonthlyReuseSavings, getWasteAnalytics, formatWasteCurrency, REUSE_LABELS } from '../lib/waste'
+
+const compactCurrency = new Intl.NumberFormat('es-AR', {
+  style: 'currency',
+  currency: 'ARS',
+  notation: 'compact',
+  maximumFractionDigits: 1,
+})
+
+const areaIcon = (area) => /frío|heladera|congelad/i.test(area)
+  ? '🧊'
+  : /baño/i.test(area) ? '🧴' : /sin área/i.test(area) ? '📍' : '📦'
 
 export default function WasteAnalytics() {
   const [error, setError] = useState('')
+  const [reuseOptionsId, setReuseOptionsId] = useState(null)
+  const [editingCostId, setEditingCostId] = useState(null)
+  const [costDraft, setCostDraft] = useState('')
   const all = useLiveQuery(async () => {
     const closed = await db.items.filter((item) => Boolean(item.wastedAt || item.reusedAt)).toArray()
     const products = await db.products.bulkGet(closed.map((item) => item.ean))
@@ -18,11 +32,13 @@ export default function WasteAnalytics() {
   )
   const analytics = useMemo(() => (items ? getWasteAnalytics(items) : null), [items])
   const sortedItems = useMemo(() => (items ? [...items].sort((a, b) => b.wastedAt - a.wastedAt) : []), [items])
+  const savings = useMemo(() => (all ? getMonthlyReuseSavings(all) : null), [all])
 
-  if (!items) return null
+  if (!items || !savings) return null
 
   const { months, totalLoss, pricedLots, unpricedLots, byArea } = analytics
   const max = Math.max(1, ...months.map((month) => month.total))
+  const activeMonths = months.filter((month) => month.total > 0).length
 
   async function run(action, fallback) {
     setError('')
@@ -33,11 +49,6 @@ export default function WasteAnalytics() {
     }
   }
 
-  // Al restaurar un lote vencido se conserva en el inventario aunque ya haya vencido
-  const restore = (item) => run(
-    () => updateItem(item.id, { wastedAt: null, keepActive: true }),
-    'No se pudo restaurar el lote.',
-  )
   const reuse = (item, label) => run(
     () => updateItem(item.id, { reusedAt: Date.now(), reuseLabel: label, wastedAt: null }),
     'No se pudo registrar la reutilización.',
@@ -46,57 +57,108 @@ export default function WasteAnalytics() {
     () => updateItem(item.id, { reusedAt: null, reuseLabel: '', wastedAt: Date.now() }),
     'No se pudo pasar el lote a pérdida.',
   )
+  const undoLoss = (item) => run(
+    () => updateItem(item.id, { wastedAt: null, keepActive: true }),
+    'No se pudo devolver el producto al inventario.',
+  )
+  const saveCost = async (item) => {
+    const value = Number(costDraft)
+    if (!costDraft.trim() || !Number.isFinite(value) || value < 0) {
+      setError('Ingresá un costo válido igual o mayor que cero.')
+      return
+    }
+    await run(async () => {
+      await updateItem(item.id, { unitCost: value })
+      setEditingCostId(null)
+    }, 'No se pudo guardar el costo.')
+  }
+  const areaDenominator = totalLoss > 0 ? totalLoss : byArea.reduce((sum, area) => sum + area.lots, 0)
 
   return (
-    <div>
+    <div className="waste-analytics">
       <div className="card">
-        <h3>Analítica de desperdicios</h3>
-        <p className="hint">Pérdidas registradas al marcar lotes vencidos como desperdiciados.</p>
+        <h3>Resumen de pérdidas</h3>
+        <p className="hint">Este es el valor de los productos que tuviste que descartar.</p>
         <div className="waste-total">
-          <span>Total con costo registrado</span>
+          <span>Valor perdido</span>
           <strong>{formatWasteCurrency(totalLoss)}</strong>
+          <span className="waste-total-detail">
+            {pricedLots > 0
+              ? `Valor de ${pricedLots} ${pricedLots === 1 ? 'producto descartado' : 'productos descartados'} con costo registrado`
+              : 'Todavía no hay costos registrados'}
+            {unpricedLots > 0 ? ` · ${unpricedLots} ${unpricedLots === 1 ? 'producto' : 'productos'} sin costo registrado` : ''}
+          </span>
         </div>
-        <p className="hint">{pricedLots} lotes con costo · {unpricedLots} sin importe</p>
+        <div className="waste-savings">
+          <span className="waste-savings-icon" aria-hidden="true">↗</span>
+          <div>
+            <span>Ahorro estimado este mes</span>
+            <strong>{formatWasteCurrency(savings.total)}</strong>
+            <small>
+              {savings.totalLots === 0
+                ? 'Todavía no hay productos consumidos a tiempo este mes'
+                : `${savings.totalLots} ${savings.totalLots === 1 ? 'producto consumido' : 'productos consumidos'} a tiempo${savings.pricedLots < savings.totalLots ? ' · algunos sin costo registrado' : ''}`}
+            </small>
+          </div>
+        </div>
       </div>
 
       <section className="card" aria-labelledby="waste-chart-title">
         <h3 id="waste-chart-title">Últimos 6 meses</h3>
-        <div className="waste-chart" role="group" aria-label="Pérdida registrada por mes en los últimos seis meses">
+        <div className="waste-chart" role="group" aria-label="Valor de productos vencidos por mes en los últimos seis meses">
           {months.map((month) => (
             <div className="waste-month" key={month.key} role="img"
               aria-label={`${month.label}: ${formatWasteCurrency(month.total)}${month.unpriced ? `, ${month.unpriced} sin importe` : ''}`}
               title={`${month.label}: ${formatWasteCurrency(month.total)}${month.unpriced ? `, ${month.unpriced} sin importe` : ''}`}>
-              <span className="waste-value">{month.total ? formatWasteCurrency(month.total) : ''}</span>
+              <span className="waste-value">{month.total ? compactCurrency.format(month.total) : ''}</span>
               <div className="waste-bar-track">
-                <div className="waste-bar" style={{ height: `${month.total ? Math.max(4, month.total / max * 100) : 0}%` }} />
+                {month.total > 0
+                  ? <div className="waste-bar" style={{ height: `${Math.max(4, month.total / max * 100)}%` }} />
+                  : <span className="waste-zero" aria-hidden="true" />}
               </div>
               <span className="waste-label">{month.label}</span>
             </div>
           ))}
         </div>
-        <p className="hint">El gráfico suma el costo por unidad multiplicado por la cantidad.</p>
+        {activeMonths < 2 && (
+          <p className="hint waste-trend">
+            {activeMonths === 0
+              ? 'Todavía no hay suficientes datos para mostrar una tendencia.'
+              : 'Aún no hay suficientes datos para ver una tendencia.'}
+          </p>
+        )}
+        <p className="hint">Valor total de productos vencidos por mes.</p>
       </section>
 
       {byArea.length > 0 && (
         <section className="card">
           <h3>Pérdidas por área</h3>
+          <p className="hint">Mirá en qué áreas se concentran los productos descartados.</p>
           <ul className="list">
-            {byArea.map((a) => (
-              <li className="row waste-row" key={a.area}>
-                <div className="info">
-                  <strong>{a.area}</strong>
+            {byArea.map((a, index) => {
+              const share = areaDenominator
+                ? ((totalLoss > 0 ? a.total : a.lots) / areaDenominator) * 100
+                : 0
+              return (
+                <li className="waste-area" key={a.area}>
+                  <div className="waste-area-top">
+                    <strong><span aria-hidden="true">{areaIcon(a.area)}</span> {a.area}</strong>
+                    <strong>{formatWasteCurrency(a.total)}</strong>
+                  </div>
+                  <div className="waste-area-track" aria-hidden="true">
+                    <span style={{ width: `${share}%`, '--area-color': `var(--waste-area-${index % 4})` }} />
+                  </div>
                   <small>{a.lots} {a.lots === 1 ? 'lote' : 'lotes'}</small>
-                </div>
-                <strong>{formatWasteCurrency(a.total)}</strong>
-              </li>
-            ))}
+                </li>
+              )
+            })}
           </ul>
         </section>
       )}
 
       <section className="card">
         <h3>Historial de pérdidas</h3>
-        <p className="hint">Los lotes vencidos se registran solos al pasar su fecha de vencimiento.</p>
+        <p className="hint">Los lotes vencidos se registran automáticamente. Si fue un error, podés deshacerlo.</p>
         {error && <p className="hint warn" role="alert">{error}</p>}
         {items.length === 0 ? (
           <p className="msg">Todavía no hay pérdidas registradas. Cuando un producto venza, aparecerá acá automáticamente.</p>
@@ -107,15 +169,45 @@ export default function WasteAnalytics() {
                 <div className="info">
                   <strong>{item.product?.name || item.ean}</strong>
                   <small>{new Date(item.wastedAt).toLocaleDateString('es-AR')} · {item.quantity} un.{item.location ? ` · ${item.location}` : ''}</small>
-                  <small>{item.unitCost == null ? 'Sin costo registrado' : formatWasteCurrency(item.unitCost * item.quantity)}</small>
+                  {reuseOptionsId === item.id && (
+                    <div className="waste-reuse-options" aria-label={`Opciones de aprovechamiento para ${item.product?.name || item.ean}`}>
+                      {REUSE_LABELS.map((label) => (
+                        <button type="button" className="chip" key={label} onClick={() => {
+                          setReuseOptionsId(null)
+                          reuse(item, label)
+                        }}>{label}</button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="waste-actions">
-                  <select aria-label={`Reutilizado como, ${item.product?.name || item.ean}`} value=""
-                    onChange={(e) => e.target.value && reuse(item, e.target.value)}>
-                    <option value="">Reutilizado…</option>
-                    {REUSE_LABELS.map((label) => <option key={label}>{label}</option>)}
-                  </select>
-                  <button className="btn small" onClick={() => restore(item)}>Restaurar</button>
+                <div className="waste-history-side">
+                  {editingCostId === item.id ? (
+                    <div className="waste-cost-editor">
+                      <label>
+                        Costo por unidad
+                        <input type="number" min="0" step="0.01" value={costDraft}
+                          onChange={(event) => setCostDraft(event.target.value)} />
+                      </label>
+                      <button type="button" className="btn small" onClick={() => saveCost(item)}>Guardar costo</button>
+                      <button type="button" className="waste-text-button" onClick={() => setEditingCostId(null)}>Cancelar</button>
+                    </div>
+                  ) : (
+                    <strong className="waste-history-cost">
+                      {item.unitCost == null ? 'Sin costo registrado' : formatWasteCurrency(item.unitCost * item.quantity)}
+                    </strong>
+                  )}
+                  <div className="waste-actions">
+                    <button type="button" className="waste-text-button" onClick={() => {
+                      setEditingCostId(item.id)
+                      setCostDraft(item.unitCost == null ? '' : String(item.unitCost))
+                    }}>Editar costo</button>
+                    <button type="button" className="waste-text-button" onClick={() => {
+                      setReuseOptionsId(reuseOptionsId === item.id ? null : item.id)
+                    }}>Registrar aprovechamiento</button>
+                    <button type="button" className="waste-text-button waste-undo-button" onClick={() => undoLoss(item)}>
+                      ↶ Devolver al inventario
+                    </button>
+                  </div>
                 </div>
               </li>
             ))}
@@ -125,9 +217,9 @@ export default function WasteAnalytics() {
 
       <section className="card">
         <h3>Reutilizados</h3>
-        <p className="hint">Productos que se aprovecharon y no cuentan como pérdida.</p>
+        <p className="hint">Productos que pudiste aprovechar y no cuentan como pérdida.</p>
         {reused.length === 0 ? (
-          <p className="msg">Todavía no hay productos reutilizados. Etiquetalos desde el inventario cuando estén por vencer.</p>
+        <p className="msg">¡Buen trabajo! Aquí aparecerán los productos que aprovechaste antes de que vencieran.</p>
         ) : (
           <ul className="list">
             {reused.map((item) => (
