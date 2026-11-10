@@ -169,6 +169,7 @@ export default function WasteAnalytics() {
                 <div className="info">
                   <strong>{item.product?.name || item.ean}</strong>
                   <small>{new Date(item.wastedAt).toLocaleDateString('es-AR')} · {item.quantity} un.{item.location ? ` · ${item.location}` : ''}</small>
+                  {item.receivedDate && <small>Recepción: {item.receivedDate}</small>}
                   {reuseOptionsId === item.id && (
                     <div className="waste-reuse-options" aria-label={`Opciones de aprovechamiento para ${item.product?.name || item.ean}`}>
                       {REUSE_LABELS.map((label) => (
@@ -227,6 +228,7 @@ export default function WasteAnalytics() {
                 <div className="info">
                   <strong>{item.product?.name || item.ean}</strong>
                   <small>{new Date(item.reusedAt).toLocaleDateString('es-AR')} · {item.quantity} un.{item.location ? ` · ${item.location}` : ''}</small>
+                  {item.receivedDate && <small>Recepción: {item.receivedDate}</small>}
                   <small><span className="reuse-tag">{item.reuseLabel || 'Reutilizado'}</span></small>
                 </div>
                 <button className="btn small" onClick={() => backToLoss(item)}>Pasar a pérdida</button>

@@ -1,3 +1,5 @@
+import { isZeroStock } from './stock.js'
+
 export const REUSE_LABELS = ['Cocinado', 'Congelado', 'Donado', 'Compartido', 'Devuelto a proveedor', 'Consumido a tiempo']
 
 // Momento en que el lote pasó a estar vencido: el inicio del día siguiente a su fecha de vencimiento
@@ -9,7 +11,7 @@ export function expiredAt(expiryDate) {
 
 // Un lote vencido se registra solo como pérdida, salvo que ya tenga destino o el usuario lo haya conservado
 export function shouldAutoWaste(item, now = Date.now()) {
-  if (item.wastedAt || item.reusedAt || item.keepActive) return false
+  if (item.wastedAt || item.reusedAt || item.keepActive || isZeroStock(item)) return false
   const at = expiredAt(item.expiryDate)
   return at != null && at <= now
 }

@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { exportAll, flush, clearLocal, pendingChanges } from '../lib/db'
 import { getPushState, enablePush, disablePush } from '../lib/push'
+import { appVersion, buildCommit, buildDate, latestMigration } from '../lib/buildInfo'
+import ChangeEmail from './ChangeEmail'
+import { isSessionLockEnabled, setSessionLockEnabled, SESSION_LOCK_EVENT } from '../lib/sessionLock'
 import {
   NOTIFY_OPTIONS,
   DATE_ORDER_OPTIONS,
@@ -26,7 +29,7 @@ const STATE_TEXT = {
   unsupported: 'No disponibles en este navegador',
 }
 
-export default function SettingsView({ email, onLogout }) {
+export default function SettingsView({ email, userId, onLogout }) {
   const [state, setState] = useState('off')
   const [days, setDays] = useState(getDefaultNotifyDays())
   const [order, setOrder] = useState(getDateOrder())
@@ -34,6 +37,7 @@ export default function SettingsView({ email, onLogout }) {
   const [geoState, setGeoState] = useState('unknown')
   const [geofence, setGeofence] = useState(getGeofenceForUseCase())
   const [err, setErr] = useState('')
+  const [sessionLock, setSessionLock] = useState(() => isSessionLockEnabled(userId))
 
   useEffect(() => {
     getPushState().then(setState)
@@ -64,13 +68,35 @@ export default function SettingsView({ email, onLogout }) {
   }
 
   async function logout() {
-    await flush()
-    const pending = await pendingChanges()
-    if (pending > 0 && !confirm(`Hay ${pending} cambios que todavía no se subieron. Si cerrás sesión ahora se perderán. ¿Cerrar sesión igual?`)) return
-    await disablePush().catch(() => { })
-    await supabase.auth.signOut()
-    await clearLocal()
-    onLogout?.()
+    setErr('')
+    try {
+      await flush()
+      const pending = await pendingChanges()
+      if (pending > 0 && !confirm(`Hay ${pending} cambios que todavía no se subieron. Si cerrás sesión ahora se perderán. ¿Cerrar sesión igual?`)) return
+      try {
+        await disablePush()
+      } catch (error) {
+        console.warn('No se pudo desactivar la suscripción push al cerrar sesión:', error)
+      }
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      await clearLocal()
+      onLogout?.()
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error)
+      setErr('No se pudo completar el cierre de sesión. Revisá la conexión e intentá de nuevo.')
+    }
+  }
+
+  function changeSessionLock(enabled) {
+    try {
+      setSessionLockEnabled(userId, enabled)
+      setSessionLock(enabled)
+      window.dispatchEvent(new Event(SESSION_LOCK_EVENT))
+    } catch (error) {
+      console.error('Error al cambiar el bloqueo de sesión:', error)
+      setErr('No se pudo cambiar el bloqueo de sesión en este dispositivo.')
+    }
   }
 
   async function exportJson() {
@@ -185,8 +211,24 @@ export default function SettingsView({ email, onLogout }) {
         <p className="hint">Se usa para decidir cuando una fecha como 03/04/27 puede leerse de más de una forma. Siempre podrás elegir otra lectura antes de guardar.</p>
       </div>
       <div className="card">
+        <h3>Versión</h3>
+        <p className="hint">App: {appVersion} · commit {buildCommit}</p>
+        <p className="hint">Build: {new Date(buildDate).toLocaleString()}</p>
+        <p className="hint">Última migración incluida: {latestMigration}</p>
+        <p className="hint">La migración indicada es la última disponible en el código; su aplicación en Supabase se realiza por separado.</p>
+      </div>
+      <div className="card">
         <h3>Cuenta</h3>
         <p className="hint">{email}</p>
+        <ChangeEmail currentEmail={email} />
+        <label>
+          <span>
+            <input type="checkbox" checked={sessionLock} onChange={(event) => changeSessionLock(event.target.checked)} />
+            Bloquear la pantalla después de 15 minutos de inactividad
+          </span>
+        </label>
+        <p className="hint">Al activarlo, se solicita la contraseña con conexión a internet al abrir o desbloquear la app. Este bloqueo no cifra los datos del dispositivo.</p>
+        {err && <p className="msg" role="alert">{err}</p>}
         <button className="btn" onClick={exportJson}>Exportar datos (JSON)</button>
         <button className="btn danger" onClick={logout}>
           Cerrar sesión

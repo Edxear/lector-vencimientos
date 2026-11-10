@@ -3,7 +3,7 @@ import { NOTIFY_OPTIONS, LOCATIONS } from '../lib/settings'
 import PhotoField from './PhotoField'
 
 // Datos propios de cada unidad/lote: vencimiento, cantidad, ubicación, aviso, notas y foto de la fecha
-export default function ItemFields({ value, onChange, onPhotoFile }) {
+export default function ItemFields({ value, onChange, onPhotoFile, allowZero = false }) {
   const [scanSignal, setScanSignal] = useState(0)
   const set = (k, v) => onChange({ ...value, [k]: v })
 
@@ -18,11 +18,15 @@ export default function ItemFields({ value, onChange, onPhotoFile }) {
           📷 {value.expiryPhoto ? 'Reescanear' : 'Escanear'}
         </button>
       </div>
+      <label>
+        Fecha de recepción (opcional)
+        <input type="date" value={value.receivedDate || ''} onChange={(e) => set('receivedDate', e.target.value)} />
+      </label>
       <div className="two">
         <label>
           Cantidad
-          <input type="number" min="1" inputMode="numeric" value={value.quantity}
-            onChange={(e) => set('quantity', Math.max(1, Number(e.target.value) || 1))} />
+          <input type="number" min={allowZero ? 0 : 1} inputMode="numeric" value={value.quantity}
+            onChange={(e) => set('quantity', Math.max(allowZero ? 0 : 1, Number(e.target.value) || 0))} />
         </label>
         <label>
           Área

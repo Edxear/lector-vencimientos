@@ -136,6 +136,8 @@ La aplicación se divide en varios bloques:
 - Foto de la fecha con recorte tipo Lens.
 - Lectura OCR de la fecha y validación del resultado.
 - Guardado local y persistencia por usuario.
+- Registro e inicio de sesión individuales. Desde Ajustes se puede solicitar un cambio de correo de la cuenta; la confirmación depende de la configuración de Supabase Auth y puede requerir revisar el correo anterior y el nuevo.
+- Bloqueo de pantalla opcional por cuenta y dispositivo tras 15 minutos de inactividad. Para desbloquear se necesita conexión y la contraseña de la cuenta. El bloqueo no cifra los datos guardados en el dispositivo.
 - Organización por áreas y categorías.
 - Filtros por área y búsqueda.
 - Configuración de alertas por días de anticipación.
@@ -144,7 +146,9 @@ La aplicación se divide en varios bloques:
 - Importación de compras desde texto, ticket o CSV.
 - Analítica de desperdicios por mes, basada en los lotes marcados explícitamente y en sus costos registrados.
 
-Para instalaciones existentes que ya aplicaron `migration_v2.sql`, ejecutar `supabase/migration_v3.sql` en Supabase > SQL Editor antes de desplegar esta versión. Las instalaciones nuevas ya incluyen estos campos en `schema.sql`. Los productos anteriores no tienen costo asignado y no se incluirán en los importes hasta que se complete ese dato.
+En Ajustes se muestran automáticamente la versión, el commit y la fecha del build desplegado, además de la última migración SQL incluida en el código. Esa información se genera durante el build (por ejemplo, al desplegar un push en Vercel); no confirma que la migración ya se haya ejecutado en Supabase.
+
+Para instalaciones existentes, aplicar en Supabase > SQL Editor las migraciones `migration_v*.sql` pendientes en orden. Para instalaciones nuevas, ejecutar `schema.sql` y después todas las migraciones en orden; `schema.sql` no las sustituye. Los productos anteriores no tienen costo asignado y no se incluirán en los importes hasta que se complete ese dato.
 
 
 ## Resultado final

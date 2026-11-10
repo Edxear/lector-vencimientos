@@ -21,11 +21,12 @@ function Chips({ list, selected, onPick }) {
 
 export default function ExpiryCapture({ onConfirm }) {
   const [busy, setBusy] = useState('')
+  const [saving, setSaving] = useState(false)
   const [candidates, setCandidates] = useState([])
   const [raw, setRaw] = useState('')
   const [typed, setTyped] = useState('')
   const [item, setItem] = useState({
-    expiryDate: '', quantity: 1, location: '', notes: '', notifyDays: getDefaultNotifyDays(), expiryPhoto: '',
+    expiryDate: '', receivedDate: '', quantity: 1, location: '', notes: '', notifyDays: getDefaultNotifyDays(), expiryPhoto: '',
   })
 
   async function onPhotoFile(file) {
@@ -61,6 +62,15 @@ export default function ExpiryCapture({ onConfirm }) {
   const ambiguous = candidates[0]?.ambiguous || fromTyped[0]?.ambiguous
   const noResult = !busy && raw && candidates.length === 0
   const selectedDate = item.expiryDate ? formatDisplay(item.expiryDate) : 'Sin fecha aún'
+  async function save() {
+    if (saving) return
+    setSaving(true)
+    try {
+      await onConfirm(item, { ocrText: raw, candidates })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="card">
@@ -95,8 +105,8 @@ export default function ExpiryCapture({ onConfirm }) {
         </>
       )}
       {raw && <details><summary>Texto leído</summary><pre>{raw}</pre></details>}
-      <button className="btn primary" disabled={!item.expiryDate || !!busy}
-        onClick={() => onConfirm(item, { ocrText: raw, candidates })}>
+      <button className="btn primary" disabled={!item.expiryDate || !!busy || saving}
+        onClick={save}>
         Guardar
       </button>
     </div>

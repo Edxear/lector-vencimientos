@@ -133,6 +133,7 @@ export default function PurchaseImportView() {
         await addItem({
           ean,
           expiryDate: line.expiryDate,
+          receivedDate: line.receivedDate || '',
           quantity: Number(line.quantity) || 1,
           location: line.location || 'Almacén',
           notes: `${line.supermarket || 'Compra'} · ${line.source || 'importación'}`,
@@ -288,6 +289,11 @@ export default function PurchaseImportView() {
                       onChange={(event) => updatePreview(index, 'expiryDate', event.target.value)} />
                   </label>
                 </div>
+                <label>
+                  Fecha de recepción (opcional)
+                  <input type="date" value={item.receivedDate || ''}
+                    onChange={(event) => updatePreview(index, 'receivedDate', event.target.value)} />
+                </label>
                 <p className="hint">{item.category} · {item.location || 'Almacén'}</p>
               </li>
             ))}

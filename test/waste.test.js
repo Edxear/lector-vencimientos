@@ -17,6 +17,8 @@ test('no se descarta solo un lote con destino o conservado a propósito', () => 
   assert.equal(shouldAutoWaste({ ...base, reusedAt: 1 }, now), false)
   assert.equal(shouldAutoWaste({ ...base, keepActive: true }, now), false)
   assert.equal(shouldAutoWaste({ expiryDate: '' }, now), false)
+  assert.equal(shouldAutoWaste({ ...base, quantity: 0 }, now), false)
+  assert.equal(shouldAutoWaste({ ...base, quantity: 1 }, now), true)
 })
 
 test('desglosa las pérdidas por área y no cuenta lotes reutilizados', () => {

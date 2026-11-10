@@ -4,6 +4,7 @@ import ProductFields from './ProductFields'
 import ItemFields from './ItemFields'
 import { daysUntil } from '../lib/dates'
 import { REUSE_LABELS } from '../lib/waste'
+import { isZeroStock } from '../lib/stock.js'
 
 // Hoja de edición de un lote y de su producto
 export default function EditItem({ row, onClose }) {
@@ -13,19 +14,29 @@ export default function EditItem({ row, onClose }) {
   const [item, setItem] = useState({
     expiryDate: row.expiryDate, quantity: row.quantity, location: row.location || '', notes: row.notes || '',
     notifyDays: row.notifyDays ?? 15, expiryPhoto: row.expiryPhoto || '', unitCost: row.unitCost ?? null,
+    receivedDate: row.receivedDate || '',
   })
   const [error, setError] = useState('')
 
   async function save() {
-    await saveProduct(product)
-    await updateItem(row.id, item)
-    onClose()
+    setError('')
+    try {
+      await saveProduct(product)
+      await updateItem(row.id, item)
+      onClose()
+    } catch (e) {
+      setError(e.message || 'No se pudieron guardar los cambios.')
+    }
   }
 
   async function remove() {
-    if (!confirm('¿Eliminar este producto del inventario?')) return
-    await removeItem(row.id)
-    onClose()
+    if (!confirm('¿Eliminar permanentemente este lote? Esta acción no conserva su historial.')) return
+    try {
+      await removeItem(row.id)
+      onClose()
+    } catch (e) {
+      setError(e.message || 'No se pudo eliminar el lote.')
+    }
   }
 
   async function markAsWasted() {
@@ -50,7 +61,7 @@ export default function EditItem({ row, onClose }) {
   }
 
   const days = daysUntil(row.expiryDate)
-  const canReuse = days <= (row.notifyDays ?? 15)
+  const canReuse = !isZeroStock(row) && days <= (row.notifyDays ?? 15)
 
   return (
     <div className="modal" role="dialog" aria-modal="true">
@@ -61,7 +72,7 @@ export default function EditItem({ row, onClose }) {
         </div>
         <ProductFields value={product} onChange={setProduct} />
         <hr />
-        <ItemFields value={item} onChange={setItem} />
+        <ItemFields value={item} onChange={setItem} allowZero />
         {canReuse && (
           <div className="reuse-box">
             <strong>{days < 0 ? '¿Le diste otro uso?' : 'Por vencer: ¿lo vas a reutilizar?'}</strong>
@@ -75,8 +86,8 @@ export default function EditItem({ row, onClose }) {
         )}
         {error && <p className="hint warn" role="alert">{error}</p>}
         <div className="btn-row">
-          <button className="btn danger" onClick={markAsWasted}>Registrar pérdida</button>
-          <button className="btn danger" onClick={remove}>Eliminar</button>
+          <button className="btn danger" disabled={isZeroStock(row)} onClick={markAsWasted}>Registrar pérdida</button>
+          <button className="btn danger" onClick={remove}>Eliminar lote</button>
           <button className="btn" onClick={onClose}>Cancelar</button>
           <button className="btn primary" disabled={!item.expiryDate || !product.name.trim()} onClick={save}>Guardar</button>
         </div>

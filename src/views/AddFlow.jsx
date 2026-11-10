@@ -10,6 +10,7 @@ export default function AddFlow({ onDone }) {
   const [step, setStep] = useState('scan')
   const [product, setProduct] = useState(null)
   const [manualEan, setManualEan] = useState('')
+  const [error, setError] = useState('')
   const abortRef = useRef(null)
 
   useEffect(() => () => abortRef.current?.abort(), [])
@@ -19,16 +20,24 @@ export default function AddFlow({ onDone }) {
     const ctrl = new AbortController()
     abortRef.current = ctrl
     setStep('lookup')
-    let p = await getProduct(ean)
-    let source = 'cache'
-    if (!p) {
-      p = await lookupOpenFoodFacts(ean, { signal: ctrl.signal })
-      source = p ? 'openfoodfacts' : 'manual'
+    setError('')
+    try {
+      let p = await getProduct(ean)
+      let source = 'cache'
+      if (!p) {
+        p = await lookupOpenFoodFacts(ean, { signal: ctrl.signal })
+        source = p ? 'openfoodfacts' : 'manual'
+      }
+      if (ctrl.signal.aborted) return
+      logEvent('scan', { ean, source })
+      setProduct(p || { ean, name: '', brand: '', content: '', category: '', imageUrl: '', source: 'manual' })
+      setStep('confirm-product')
+    } catch (e) {
+      if (!ctrl.signal.aborted) {
+        setError(e.message || 'No se pudo buscar el producto en este dispositivo.')
+        setStep('scan')
+      }
     }
-    if (ctrl.signal.aborted) return
-    logEvent('scan', { ean, source })
-    setProduct(p || { ean, name: '', brand: '', content: '', category: '', imageUrl: '', source: 'manual' })
-    setStep('confirm-product')
   }, [])
 
   function cancelLookup() {
@@ -37,15 +46,25 @@ export default function AddFlow({ onDone }) {
   }
 
   async function confirmProduct() {
-    await saveProduct(product)
-    setStep('expiry')
+    setError('')
+    try {
+      await saveProduct(product)
+      setStep('expiry')
+    } catch (e) {
+      setError(e.message || 'No se pudo guardar el producto.')
+    }
   }
 
   async function saveExpiry(item, meta) {
-    await addItem({ ean: product.ean, ...item })
-    logEvent('expiry', { ocrUsed: !!meta.ocrText, candidates: meta.candidates.length, finalDate: item.expiryDate, ocrText: meta.ocrText })
-    if (pushSupported() && Notification.permission === 'default') enablePush().catch(() => {})
-    onDone()
+    setError('')
+    try {
+      await addItem({ ean: product.ean, ...item })
+      logEvent('expiry', { ocrUsed: !!meta.ocrText, candidates: meta.candidates.length, finalDate: item.expiryDate, ocrText: meta.ocrText })
+      if (pushSupported() && Notification.permission === 'default') enablePush().catch(() => {})
+      onDone()
+    } catch (e) {
+      setError(e.message || 'No se pudo guardar el lote.')
+    }
   }
 
   if (step === 'scan')
@@ -58,6 +77,7 @@ export default function AddFlow({ onDone }) {
             <input inputMode="numeric" value={manualEan} onChange={(e) => setManualEan(e.target.value.replace(/\D/g, ''))} />
           </label>
           <button className="btn" disabled={manualEan.length < 8} onClick={() => handleEan(manualEan)}>Buscar</button>
+          {error && <p className="hint warn" role="alert">{error}</p>}
         </div>
       </>
     )
@@ -74,7 +94,9 @@ export default function AddFlow({ onDone }) {
     return (
       <div className="card">
         <h3>Producto</h3>
+        {product.archived && <p className="hint">Producto archivado: se reactivará al guardar el nuevo lote.</p>}
         <ProductFields value={product} onChange={setProduct} />
+        {error && <p className="hint warn" role="alert">{error}</p>}
         <div className="btn-row">
           <button className="btn" onClick={() => setStep('scan')}>Volver</button>
           <button className="btn primary" disabled={!product.name.trim()} onClick={confirmProduct}>Continuar</button>
@@ -82,5 +104,5 @@ export default function AddFlow({ onDone }) {
       </div>
     )
 
-  return <ExpiryCapture onConfirm={saveExpiry} />
+  return <><ExpiryCapture onConfirm={saveExpiry} />{error && <p className="hint warn" role="alert">{error}</p>}</>
 }

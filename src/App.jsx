@@ -2,6 +2,9 @@ import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import InventoryList from './views/InventoryList'
 import AuthView from './views/AuthView'
+import SessionLock from './views/SessionLock'
+import { isLockTimeoutReached, isSessionLockEnabled, sessionLockKey, SESSION_LOCK_EVENT, SESSION_LOCK_TIMEOUT_MS } from './lib/sessionLock'
+import { syncBannerMessage } from './lib/connectivity'
 
 const AddFlow = lazy(() => import('./views/AddFlow'))
 const PurchaseImportView = lazy(() => import('./views/PurchaseImportView'))
@@ -19,6 +22,8 @@ export default function App() {
   const [syncError, setSyncError] = useState('')
   const pending = useLiveQuery(() => db.outbox.count(), [], 0)
   const [online, setOnline] = useState(navigator.onLine)
+  const [unlockedFor, setUnlockedFor] = useState(null)
+  const [, setLockRevision] = useState(0)
 
   useEffect(() => {
     const on = () => setOnline(true)
@@ -31,11 +36,67 @@ export default function App() {
   useEffect(() => {
     navigator.storage?.persist?.()
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      if (event === 'SIGNED_OUT') setUnlockedFor(null)
+      setSession(s)
+    })
     return () => sub.subscription.unsubscribe()
   }, [])
 
   const userId = session?.user?.id
+  const lockEnabled = isSessionLockEnabled(userId)
+  const locked = unlockedFor !== userId
+  const bannerMessage = syncBannerMessage({ online, pending, syncError })
+
+  useEffect(() => {
+    const updateLock = () => {
+      setUnlockedFor(null)
+      setLockRevision((revision) => revision + 1)
+    }
+    const onStorage = (event) => {
+      if (event.key === null || event.key === sessionLockKey(userId)) updateLock()
+    }
+    window.addEventListener(SESSION_LOCK_EVENT, updateLock)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener(SESSION_LOCK_EVENT, updateLock)
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [userId])
+
+  useEffect(() => {
+    if (!userId || !lockEnabled || locked) return
+    let timer
+    let lastActivity = Date.now()
+    const lockIfInactive = () => {
+      if (isLockTimeoutReached(lastActivity)) setUnlockedFor(null)
+      else timer = setTimeout(lockIfInactive, SESSION_LOCK_TIMEOUT_MS - (Date.now() - lastActivity))
+    }
+    const activity = () => {
+      if (isLockTimeoutReached(lastActivity)) {
+        setUnlockedFor(null)
+        return
+      }
+      lastActivity = Date.now()
+      clearTimeout(timer)
+      timer = setTimeout(lockIfInactive, SESSION_LOCK_TIMEOUT_MS)
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        clearTimeout(timer)
+        lockIfInactive()
+      }
+    }
+    const events = ['pointerdown', 'keydown', 'touchstart']
+    events.forEach((event) => window.addEventListener(event, activity))
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    activity()
+    return () => {
+      clearTimeout(timer)
+      events.forEach((event) => window.removeEventListener(event, activity))
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [userId, lockEnabled, locked])
 
   const sync = useCallback(async () => {
     try {
@@ -90,20 +151,18 @@ export default function App() {
         <Logo />
         <h1>Lector Vencimientos</h1>
       </header>
-      {session && (pending > 0 || syncError) && (
+      {session && bannerMessage && (
         <div className="sync-banner" role={syncError ? 'alert' : 'status'}>
-          <span>
-            {syncError || (online
-              ? `${pending} ${pending === 1 ? 'cambio' : 'cambios'} sin sincronizar.`
-              : `Sin conexión: ${pending} ${pending === 1 ? 'cambio se guardará' : 'cambios se guardarán'} al volver internet.`)}
-          </span>
-          {online && <button type="button" className="btn small" onClick={sync}>Reintentar</button>}
+          <span>{bannerMessage}</span>
+          {online && (pending > 0 || syncError) && <button type="button" className="btn small" onClick={sync}>Reintentar</button>}
         </div>
       )}
       <main>
         <Suspense fallback={<p className="msg" role="status">Cargando…</p>}>
         {!session ? (
           <AuthView />
+        ) : lockEnabled && locked ? (
+          <SessionLock email={session.user.email} userId={userId} onUnlock={() => setUnlockedFor(userId)} />
         ) : tab === 'list' ? (
           <InventoryList />
         ) : tab === 'add' ? (
@@ -113,11 +172,11 @@ export default function App() {
         ) : tab === 'waste' ? (
           <WasteAnalytics />
         ) : (
-          <SettingsView email={session.user.email} onLogout={() => setTab('list')} />
+          <SettingsView email={session.user.email} userId={userId} onLogout={() => setTab('list')} />
         )}
         </Suspense>
       </main>
-      {session && (
+      {session && !(lockEnabled && locked) && (
         <nav>
           <button className={tab === 'list' ? 'on' : ''} onClick={() => setTab('list')}>Inventario</button>
           <button className={tab === 'add' ? 'on' : ''} onClick={() => setTab('add')}>＋ Agregar</button>

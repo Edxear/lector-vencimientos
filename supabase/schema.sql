@@ -8,6 +8,7 @@ create table if not exists public.products (
   image_url text default '',
   category text default '',
   source text default 'manual',
+  archived boolean not null default false,
   primary key (user_id, ean)
 );
 
@@ -16,6 +17,7 @@ create table if not exists public.items (
   user_id uuid not null default auth.uid() references auth.users on delete cascade,
   ean text not null,
   expiry_date date not null,
+  received_date date,
   quantity int not null default 1,
   location text default '',
   unit_cost numeric(12,2),
