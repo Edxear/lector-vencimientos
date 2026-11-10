@@ -25,6 +25,7 @@ export default function ExpiryCapture({ onConfirm }) {
   const [candidates, setCandidates] = useState([])
   const [raw, setRaw] = useState('')
   const [typed, setTyped] = useState('')
+  const [additionalLots, setAdditionalLots] = useState([])
   const [item, setItem] = useState({
     expiryDate: '', receivedDate: '', quantity: 1, location: '', notes: '', notifyDays: getDefaultNotifyDays(), expiryPhoto: '',
   })
@@ -62,11 +63,12 @@ export default function ExpiryCapture({ onConfirm }) {
   const ambiguous = candidates[0]?.ambiguous || fromTyped[0]?.ambiguous
   const noResult = !busy && raw && candidates.length === 0
   const selectedDate = item.expiryDate ? formatDisplay(item.expiryDate) : 'Sin fecha aún'
+  const validQuantity = (quantity) => Number.isInteger(Number(quantity)) && Number(quantity) >= 1 && Number(quantity) <= 2147483647
   async function save() {
     if (saving) return
     setSaving(true)
     try {
-      await onConfirm(item, { ocrText: raw, candidates })
+      await onConfirm([item, ...additionalLots.map((lot) => ({ ...item, ...lot, expiryPhoto: '' }))], { ocrText: raw, candidates })
     } finally {
       setSaving(false)
     }
@@ -86,6 +88,20 @@ export default function ExpiryCapture({ onConfirm }) {
       )}
       {noResult && <p className="hint warn">No pude reconocer una fecha. Vuelve a recuadrarla o escríbela abajo.</p>}
       <ItemFields value={item} onChange={setItem} onPhotoFile={onPhotoFile} />
+      {additionalLots.map((lot, index) => (
+        <div className="card" key={lot.key}>
+          <strong>Vencimiento adicional {index + 1}</strong>
+          <label>Fecha de vencimiento
+            <input type="date" value={lot.expiryDate} onChange={(e) => setAdditionalLots((lots) => lots.map((entry) => entry.key === lot.key ? { ...entry, expiryDate: e.target.value } : entry))} />
+          </label>
+          <label>Cantidad
+            <input type="number" min="1" step="1" value={lot.quantity} onChange={(e) => setAdditionalLots((lots) => lots.map((entry) => entry.key === lot.key ? { ...entry, quantity: e.target.value } : entry))} />
+          </label>
+          <button type="button" className="btn small" onClick={() => setAdditionalLots((lots) => lots.filter((entry) => entry.key !== lot.key))}>Quitar fecha</button>
+        </div>
+      ))}
+      <button type="button" className="btn" onClick={() => setAdditionalLots((lots) => [...lots, { key: crypto.randomUUID(), expiryDate: '', quantity: 1 }])}>Agregar otra fecha</button>
+      {additionalLots.length > 0 && <p className="hint">Cada fecha crea un lote independiente. Los demás datos se aplican a todos los lotes.</p>}
       <label>
         Escribir la fecha tal como figura
         <input type="text" value={typed} placeholder="Ej: 15MAR27, 03/27, 2027-03-15"
@@ -105,7 +121,7 @@ export default function ExpiryCapture({ onConfirm }) {
         </>
       )}
       {raw && <details><summary>Texto leído</summary><pre>{raw}</pre></details>}
-      <button className="btn primary" disabled={!item.expiryDate || !!busy || saving}
+      <button className="btn primary" disabled={!item.expiryDate || !validQuantity(item.quantity) || !!busy || saving || additionalLots.some((lot) => !lot.expiryDate || !validQuantity(lot.quantity))}
         onClick={save}>
         Guardar
       </button>

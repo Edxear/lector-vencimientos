@@ -15,6 +15,7 @@ test('avisos locales ignoran lotes sin stock pero no lotes con stock', async () 
   }
   globalThis.window = { Notification: {} }
   globalThis.Notification = { permission: 'granted' }
+  globalThis.document = { visibilityState: 'visible' }
   Object.defineProperty(globalThis, 'navigator', {
     configurable: true,
     value: { serviceWorker: { ready: Promise.resolve({ showNotification: async (...args) => shown.push(args) }) } },
@@ -24,6 +25,7 @@ test('avisos locales ignoran lotes sin stock pero no lotes con stock', async () 
     .replace("'./dates'", JSON.stringify(new URL('../src/lib/dates.js', import.meta.url).href))
     .replace("'./settings'", JSON.stringify('data:text/javascript,export const APP_CONTEXTS = {}; export const getAppUseCase = () => ""; export const getGeofenceForUseCase = () => ({})'))
     .replace("'./stock.js'", JSON.stringify(new URL('../src/lib/stock.js', import.meta.url).href))
+    .replace("'./alarm.js'", JSON.stringify('data:text/javascript,export const playAlarm = async () => {}'))
   const { checkExpiringNow } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`)
   await checkExpiringNow()
   assert.deepEqual(notified, ['full'])

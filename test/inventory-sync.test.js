@@ -32,6 +32,7 @@ const source = (await readFile(new URL('../src/lib/db.js', import.meta.url), 'ut
   .replace("'dexie'", JSON.stringify(import.meta.resolve('dexie')))
   .replace("'./waste'", JSON.stringify(new URL('../src/lib/waste.js', import.meta.url).href))
   .replace("'./stock.js'", JSON.stringify(new URL('../src/lib/stock.js', import.meta.url).href))
+  .replace("'./opened.js'", JSON.stringify(new URL('../src/lib/opened.js', import.meta.url).href))
   .replace("'./supabase'", JSON.stringify('data:text/javascript,export const supabase = globalThis.__inventoryTestSupabase'))
 const store = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`)
 
@@ -115,5 +116,43 @@ test('recepción y archivo sobreviven offline, sincronización y descarga sin bo
   assert.equal((await db.products.get('456')).archived, false)
   assert.equal((await db.items.get(zeroId)).wastedAt, null)
   await assert.rejects(setProductArchived('456', true), /stock/)
+
+  const ids = await store.addItems([
+    { ean: '456', expiryDate: '2032-01-01', quantity: 2 },
+    { ean: '456', expiryDate: '2032-02-01', quantity: 3 },
+    { ean: '456', expiryDate: '2032-03-01', quantity: 1 },
+  ])
+  assert.equal(new Set(ids).size, 3)
+  const lots = await db.items.bulkGet(ids)
+  assert.deepEqual(lots.map((lot) => [lot.expiryDate, lot.quantity]), [
+    ['2032-01-01', 2], ['2032-02-01', 3], ['2032-03-01', 1],
+  ])
+  const lotJobs = (await db.outbox.toArray()).filter((job) => ids.includes(job.row.id))
+  assert.equal(lotJobs.length, 3)
+  await assert.rejects(store.addItems([]), /No hay lotes/)
+  const before = await db.items.count()
+  await assert.rejects(store.addItems([
+    { ean: '456', expiryDate: '2032-01-01' },
+    { ean: '456', expiryDate: '2032-02-01', openedDate: '2032-01-01', openedDays: 0 },
+  ]), /fecha de apertura/)
+  assert.equal(await db.items.count(), before)
+  const openedId = await addItem({ ean: '456', expiryDate: '2035-02-01', openedDate: '2035-01-01', openedDays: 3 })
+  assert.equal((await db.items.get(openedId)).expiryDate, '2035-01-04')
+  await store.markNotified(openedId)
+  assert.equal((await db.items.get(openedId)).sealedExpiryDate, '2035-02-01')
+  navigator.onLine = true
+  await flush()
+  await pull()
+  assert.equal((await db.items.get(openedId)).openedDays, 3)
+  assert.equal((await db.items.get(openedId)).sealedExpiryDate, '2035-02-01')
+  navigator.onLine = false
+  await updateItem(openedId, { expiryDate: '2035-02-01', openedDate: '', openedDays: '' })
+  assert.equal((await db.items.get(openedId)).expiryDate, '2035-02-01')
+  assert.equal((await db.items.get(openedId)).notifiedAt, null)
+  const importedId = '00000000-0000-4000-8000-000000000003'
+  const imported = { products: [{ ean: 'importado', name: 'Nuevo' }], items: [{ id: importedId, ean: 'importado', expiryDate: '2036-01-01', quantity: 2 }] }
+  assert.deepEqual(await store.importInventory(imported), { addedProducts: 1, addedItems: 1 })
+  assert.deepEqual(await store.importInventory(imported), { addedProducts: 0, addedItems: 0 })
+  assert.equal((await db.items.get(importedId)).quantity, 2)
   await db.delete()
 })

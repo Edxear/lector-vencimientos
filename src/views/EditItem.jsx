@@ -12,9 +12,10 @@ export default function EditItem({ row, onClose }) {
     row.product || { ean: row.ean, name: '', brand: '', content: '', category: '', imageUrl: '', source: 'manual' },
   )
   const [item, setItem] = useState({
-    expiryDate: row.expiryDate, quantity: row.quantity, location: row.location || '', notes: row.notes || '',
+    expiryDate: row.sealedExpiryDate || row.expiryDate, quantity: row.quantity, location: row.location || '', notes: row.notes || '',
     notifyDays: row.notifyDays ?? 15, expiryPhoto: row.expiryPhoto || '', unitCost: row.unitCost ?? null,
     receivedDate: row.receivedDate || '',
+    openedDate: row.openedDate || '', openedDays: row.openedDays ?? '',
   })
   const [error, setError] = useState('')
 
@@ -89,7 +90,7 @@ export default function EditItem({ row, onClose }) {
           <button className="btn danger" disabled={isZeroStock(row)} onClick={markAsWasted}>Registrar pérdida</button>
           <button className="btn danger" onClick={remove}>Eliminar lote</button>
           <button className="btn" onClick={onClose}>Cancelar</button>
-          <button className="btn primary" disabled={!item.expiryDate || !product.name.trim()} onClick={save}>Guardar</button>
+          <button className="btn primary" disabled={!item.expiryDate || !product.name.trim() || !Number.isInteger(Number(item.quantity)) || Number(item.quantity) < 0 || Number(item.quantity) > 2147483647} onClick={save}>Guardar</button>
         </div>
       </div>
     </div>

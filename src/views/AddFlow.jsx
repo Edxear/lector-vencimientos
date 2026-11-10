@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import ScannerView from './ScannerView'
 import ExpiryCapture from './ExpiryCapture'
 import ProductFields from './ProductFields'
-import { getProduct, saveProduct, addItem, logEvent } from '../lib/db'
+import { getProduct, saveProduct, addItems, logEvent } from '../lib/db'
 import { lookupOpenFoodFacts } from '../lib/products'
 import { pushSupported, enablePush } from '../lib/push'
 
@@ -15,7 +15,12 @@ export default function AddFlow({ onDone }) {
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
-  const handleEan = useCallback(async (ean) => {
+  const handleEan = useCallback(async (ean, format) => {
+    ean = ean.trim()
+    if (!ean) {
+      setError('El código está vacío.')
+      return
+    }
     abortRef.current?.abort()
     const ctrl = new AbortController()
     abortRef.current = ctrl
@@ -24,7 +29,7 @@ export default function AddFlow({ onDone }) {
     try {
       let p = await getProduct(ean)
       let source = 'cache'
-      if (!p) {
+      if (!p && format !== 'qr_code' && /^\d{8,14}$/.test(ean)) {
         p = await lookupOpenFoodFacts(ean, { signal: ctrl.signal })
         source = p ? 'openfoodfacts' : 'manual'
       }
@@ -55,11 +60,11 @@ export default function AddFlow({ onDone }) {
     }
   }
 
-  async function saveExpiry(item, meta) {
+  async function saveExpiry(items, meta) {
     setError('')
     try {
-      await addItem({ ean: product.ean, ...item })
-      logEvent('expiry', { ocrUsed: !!meta.ocrText, candidates: meta.candidates.length, finalDate: item.expiryDate, ocrText: meta.ocrText })
+      await addItems(items.map(({ key, ...item }) => ({ ean: product.ean, ...item, quantity: Number(item.quantity) })))
+      logEvent('expiry', { ocrUsed: !!meta.ocrText, candidates: meta.candidates.length, finalDate: items[0].expiryDate, ocrText: meta.ocrText })
       if (pushSupported() && Notification.permission === 'default') enablePush().catch(() => {})
       onDone()
     } catch (e) {
@@ -73,10 +78,10 @@ export default function AddFlow({ onDone }) {
         <ScannerView onDetect={handleEan} />
         <div className="card">
           <label>
-            O ingresa el código a mano
-            <input inputMode="numeric" value={manualEan} onChange={(e) => setManualEan(e.target.value.replace(/\D/g, ''))} />
+            O ingresá el identificador a mano
+            <input value={manualEan} onChange={(e) => setManualEan(e.target.value)} />
           </label>
-          <button className="btn" disabled={manualEan.length < 8} onClick={() => handleEan(manualEan)}>Buscar</button>
+          <button className="btn" disabled={!manualEan.trim()} onClick={() => handleEan(manualEan)}>Buscar</button>
           {error && <p className="hint warn" role="alert">{error}</p>}
         </div>
       </>

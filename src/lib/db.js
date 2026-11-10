@@ -2,6 +2,7 @@ import Dexie from 'dexie'
 import { supabase } from './supabase'
 import { shouldAutoWaste, expiredAt } from './waste'
 import { hasActiveStock } from './stock.js'
+import { withOpeningExpiry } from './opened.js'
 
 export const db = new Dexie('lector-vencimientos')
 
@@ -28,6 +29,9 @@ const toRemoteItem = (i) => ({
   notified_at: i.notifiedAt ? new Date(i.notifiedAt).toISOString() : null,
   unit_cost: i.unitCost ?? null,
   received_date: i.receivedDate || null,
+  sealed_expiry_date: i.sealedExpiryDate || null,
+  opened_date: i.openedDate || null,
+  opened_days: i.openedDays ?? null,
   wasted_at: i.wastedAt ? new Date(i.wastedAt).toISOString() : null,
   reused_at: i.reusedAt ? new Date(i.reusedAt).toISOString() : null,
   reuse_label: i.reuseLabel || '',
@@ -39,6 +43,9 @@ const fromRemoteItem = (r) => ({
   notifiedAt: r.notified_at ? Date.parse(r.notified_at) : null, addedAt: Date.parse(r.created_at),
   unitCost: r.unit_cost == null ? null : Number(r.unit_cost),
   receivedDate: r.received_date || '',
+  sealedExpiryDate: r.sealed_expiry_date || '',
+  openedDate: r.opened_date || '',
+  openedDays: r.opened_days ?? null,
   wastedAt: r.wasted_at ? Date.parse(r.wasted_at) : null,
   reusedAt: r.reused_at ? Date.parse(r.reused_at) : null,
   reuseLabel: r.reuse_label || '',
@@ -72,7 +79,13 @@ export async function setProductArchived(ean, archived) {
 }
 
 export async function addItem(data) {
-  const item = {
+  const [id] = await addItems([data])
+  return id
+}
+
+export async function addItems(entries) {
+  if (!entries.length) throw new Error('No hay lotes para guardar.')
+  const items = entries.map((data) => withOpeningExpiry({
     id: crypto.randomUUID(),
     quantity: 1,
     location: '',
@@ -88,19 +101,21 @@ export async function addItem(data) {
     ...data,
     addedAt: Date.now(),
     notifiedAt: null,
-  }
+  }))
   await db.transaction('rw', db.products, db.items, db.outbox, async () => {
-    const product = await db.products.get(item.ean)
-    if (product?.archived && hasActiveStock(item)) {
-      const active = { ...product, archived: false }
-      await db.products.put(active)
-      await db.outbox.add({ op: 'upsert', table: 'products', row: toRemoteProduct(active) })
+    for (const item of items) {
+      const product = await db.products.get(item.ean)
+      if (product?.archived && hasActiveStock(item)) {
+        const active = { ...product, archived: false }
+        await db.products.put(active)
+        await db.outbox.add({ op: 'upsert', table: 'products', row: toRemoteProduct(active) })
+      }
+      await db.items.add(item)
+      await db.outbox.add({ op: 'upsert', table: 'items', row: toRemoteItem(item) })
     }
-    await db.items.add(item)
-    await db.outbox.add({ op: 'upsert', table: 'items', row: toRemoteItem(item) })
   })
   flush()
-  return item.id
+  return items.map((item) => item.id)
 }
 
 export async function updateItem(id, patch, { autoWasteAt } = {}) {
@@ -110,6 +125,10 @@ export async function updateItem(id, patch, { autoWasteAt } = {}) {
     if (autoWasteAt != null) {
       if (!shouldAutoWaste(current, autoWasteAt)) return false
       patch = { ...patch, wastedAt: expiredAt(current.expiryDate) }
+    }
+    if ('expiryDate' in patch || 'openedDate' in patch || 'openedDays' in patch) {
+      const sealedExpiryDate = 'expiryDate' in patch ? patch.expiryDate : current.sealedExpiryDate || current.expiryDate
+      patch = withOpeningExpiry({ ...current, ...patch, sealedExpiryDate })
     }
     const rearm = ('expiryDate' in patch && patch.expiryDate !== current.expiryDate) ||
       ('notifyDays' in patch && patch.notifyDays !== current.notifyDays)
@@ -131,9 +150,8 @@ export async function updateItem(id, patch, { autoWasteAt } = {}) {
 }
 
 export async function markNotified(id) {
-  const item = await db.items.get(id)
-  if (!item) return
-  await updateItem(id, { notifiedAt: Date.now(), expiryDate: item.expiryDate, notifyDays: item.notifyDays })
+  if (!(await db.items.get(id))) return
+  await updateItem(id, { notifiedAt: Date.now() })
 }
 
 export async function removeItem(id) {
@@ -167,6 +185,35 @@ export async function exportAll() {
     items: (await db.items.toArray()).map(({ expiryPhoto, ...rest }) => ({ ...rest, hasExpiryPhoto: !!expiryPhoto })),
     events: await db.events.toArray(),
   }
+}
+
+export async function importInventory({ products, items }) {
+  let addedProducts = 0
+  let addedItems = 0
+  await db.transaction('rw', db.products, db.items, db.outbox, async () => {
+    for (const product of products) {
+      if (await db.products.get(product.ean)) continue
+      await db.products.add(product)
+      await db.outbox.add({ op: 'upsert', table: 'products', row: toRemoteProduct(product) })
+      addedProducts++
+    }
+    for (const entry of items) {
+      if (await db.items.get(entry.id)) continue
+      const product = await db.products.get(entry.ean)
+      if (!product) throw new Error(`No se encontró el producto ${entry.ean}.`)
+      const item = { ...entry, addedAt: Date.now(), notifiedAt: null, wastedAt: null, reusedAt: null, reuseLabel: '', keepActive: false, expiryPhoto: '' }
+      if (product.archived && hasActiveStock(item)) {
+        const active = { ...product, archived: false }
+        await db.products.put(active)
+        await db.outbox.add({ op: 'upsert', table: 'products', row: toRemoteProduct(active) })
+      }
+      await db.items.add(item)
+      await db.outbox.add({ op: 'upsert', table: 'items', row: toRemoteItem(item) })
+      addedItems++
+    }
+  })
+  flush()
+  return { addedProducts, addedItems }
 }
 
 let flushing = null

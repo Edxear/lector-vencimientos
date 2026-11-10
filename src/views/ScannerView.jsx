@@ -9,22 +9,30 @@ export default function ScannerView({ onDetect }) {
     if (!supported) return
     let stream
     let stopped = false
-    const detector = new window.BarcodeDetector({
-      formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'],
-    })
+    let detector
 
     async function start() {
       try {
+        const wanted = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']
+        const supportedFormats = await window.BarcodeDetector.getSupportedFormats()
+        const formats = wanted.filter((format) => supportedFormats.includes(format))
+        if (!formats.length) throw new Error('El navegador no admite los formatos de códigos utilizados.')
+        if (!formats.includes('qr_code')) setError('Este navegador no admite lectura de QR. Podés ingresar el identificador manualmente.')
+        detector = new window.BarcodeDetector({ formats })
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
         })
+        if (stopped) {
+          stream.getTracks().forEach((t) => t.stop())
+          return
+        }
         const track = stream.getVideoTracks()[0]
         track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {})
         videoRef.current.srcObject = stream
         await videoRef.current.play()
         loop()
-      } catch {
-        setError('No se pudo acceder a la cámara. Revisa los permisos.')
+      } catch (e) {
+        setError(e.message || 'No se pudo acceder a la cámara. Revisa los permisos.')
       }
     }
 
@@ -34,7 +42,7 @@ export default function ScannerView({ onDetect }) {
         const codes = await detector.detect(videoRef.current)
         if (codes.length) {
           navigator.vibrate?.(60)
-          onDetect(codes[0].rawValue)
+          onDetect(codes[0].rawValue, codes[0].format)
           return
         }
       } catch {

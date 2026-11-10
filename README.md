@@ -134,6 +134,11 @@ La aplicación se divide en varios bloques:
 - Carga manual y edición de productos.
 - Foto del producto con ajuste de tamaño y calidad.
 - Foto de la fecha con recorte tipo Lens.
+- Carga conjunta de varias fechas y cantidades para un producto, como lotes independientes.
+- Fecha de apertura y días de conservación opcionales por lote; se mantiene el vencimiento original y se usa la fecha más temprana para avisos y pérdidas. La apertura afecta a todas las unidades del lote.
+- Lectura de códigos QR como identificadores de producto cuando el navegador admite ese formato; no se abren los enlaces contenidos en el código.
+- Importación y exportación de inventario XLSX desde Ajustes, usando el archivo exportado como plantilla. La importación agrega únicamente productos y lotes nuevos; para importar lotes de otra cuenta hay que borrar `id_lote` para crearlos como nuevos. El Excel no incluye historial, fotos, recepción ni archivo de productos y no es una copia de seguridad completa.
+- Sonido de alarma opcional mientras la app está visible, sujeto a las restricciones de audio del navegador. La notificación con la app cerrada usa el sonido configurado en el sistema.
 - Lectura OCR de la fecha y validación del resultado.
 - Guardado local y persistencia por usuario.
 - Registro e inicio de sesión individuales. Desde Ajustes se puede solicitar un cambio de correo de la cuenta; la confirmación depende de la configuración de Supabase Auth y puede requerir revisar el correo anterior y el nuevo.
@@ -148,7 +153,7 @@ La aplicación se divide en varios bloques:
 
 En Ajustes se muestran automáticamente la versión, el commit y la fecha del build desplegado, además de la última migración SQL incluida en el código. Esa información se genera durante el build (por ejemplo, al desplegar un push en Vercel); no confirma que la migración ya se haya ejecutado en Supabase.
 
-Para instalaciones existentes, aplicar en Supabase > SQL Editor las migraciones `migration_v*.sql` pendientes en orden. Para instalaciones nuevas, ejecutar `schema.sql` y después todas las migraciones en orden; `schema.sql` no las sustituye. Los productos anteriores no tienen costo asignado y no se incluirán en los importes hasta que se complete ese dato.
+Para instalaciones existentes, aplicar en Supabase > SQL Editor las migraciones `migration_v*.sql` pendientes en orden **antes de desplegar** esta versión; en particular, `migration_v6.sql` es necesaria para sincronizar los lotes. Para instalaciones nuevas, ejecutar `schema.sql` y después todas las migraciones en orden; `schema.sql` no las sustituye. Los productos anteriores no tienen costo asignado y no se incluirán en los importes hasta que se complete ese dato.
 
 
 ## Resultado final

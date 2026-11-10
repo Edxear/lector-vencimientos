@@ -15,11 +15,13 @@ import { supabase } from './lib/supabase'
 import { db, pull, autoWasteExpired, SYNC_STATUS_EVENT } from './lib/db'
 import { checkExpiringNow } from './lib/notifications'
 import { syncPushSubscription } from './lib/push'
+import { playAlarm } from './lib/alarm'
 
 export default function App() {
   const [tab, setTab] = useState('list')
   const [session, setSession] = useState(undefined)
   const [syncError, setSyncError] = useState('')
+  const [alarmError, setAlarmError] = useState('')
   const pending = useLiveQuery(() => db.outbox.count(), [], 0)
   const [online, setOnline] = useState(navigator.onLine)
   const [unlockedFor, setUnlockedFor] = useState(null)
@@ -132,14 +134,32 @@ export default function App() {
     if (!userId) return
     sync()
     syncPushSubscription()
-    const tick = () => { if (document.visibilityState === 'visible') autoWasteExpired() }
+    const tick = async () => {
+      if (document.visibilityState !== 'visible') return
+      try {
+        await autoWasteExpired()
+        await checkExpiringNow()
+      } catch (error) {
+        console.error('Error al comprobar vencimientos:', error)
+        setAlarmError('No se pudieron comprobar los avisos o reproducir la alarma. Revisá Ajustes.')
+      }
+    }
+    const onMessage = (event) => {
+      if (event.data?.type !== 'EXPIRY_ALARM' || document.visibilityState !== 'visible') return
+      playAlarm().catch((error) => {
+        console.error('No se pudo reproducir la alarma:', error)
+        setAlarmError('El navegador bloqueó el sonido. Probá la alarma desde Ajustes.')
+      })
+    }
     const timer = setInterval(tick, 10 * 60 * 1000)
     document.addEventListener('visibilitychange', tick)
     window.addEventListener('online', sync)
+    navigator.serviceWorker?.addEventListener('message', onMessage)
     return () => {
       clearInterval(timer)
       document.removeEventListener('visibilitychange', tick)
       window.removeEventListener('online', sync)
+      navigator.serviceWorker?.removeEventListener('message', onMessage)
     }
   }, [userId, sync])
 
@@ -157,6 +177,7 @@ export default function App() {
           {online && (pending > 0 || syncError) && <button type="button" className="btn small" onClick={sync}>Reintentar</button>}
         </div>
       )}
+      {session && alarmError && <div className="sync-banner" role="alert">{alarmError}<button type="button" className="btn small" onClick={() => setAlarmError('')}>Cerrar</button></div>}
       <main>
         <Suspense fallback={<p className="msg" role="status">Cargando…</p>}>
         {!session ? (

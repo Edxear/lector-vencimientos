@@ -2,6 +2,7 @@ import { db, markNotified } from './db'
 import { daysUntil } from './dates'
 import { APP_CONTEXTS, getAppUseCase, getGeofenceForUseCase } from './settings'
 import { hasActiveStock } from './stock.js'
+import { playAlarm } from './alarm.js'
 
 function haversineKm(a, b) {
   const earthR = 6371
@@ -58,6 +59,7 @@ export async function checkExpiringNow() {
   if (!reg) return
   const items = await db.items.toArray()
   const locationContext = await getLocationContext()
+  let shown = false
   for (const it of items) {
     if (it.notifiedAt || !hasActiveStock(it)) continue
     const left = daysUntil(it.expiryDate)
@@ -71,8 +73,10 @@ export async function checkExpiringNow() {
         tag: `item-${it.id}`,
       })
       await markNotified(it.id)
+      shown = true
     }
   }
+  if (shown && document.visibilityState === 'visible') await playAlarm()
 }
 
 // Genera un .ics con alarma antes del vencimiento

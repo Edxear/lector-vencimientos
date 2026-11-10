@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { addItem, db, setProductArchived } from '../lib/db'
+import { addItems, db, setProductArchived } from '../lib/db'
 import { daysUntil } from '../lib/dates'
 import { LOCATIONS } from '../lib/settings'
 import { buildIcs } from '../lib/notifications'
@@ -85,10 +85,10 @@ export default function InventoryList() {
     }
   }
 
-  async function addCatalogItem(item) {
+  async function addCatalogItem(items) {
     setCatalogError('')
     try {
-      await addItem({ ...item, ean: addingProduct.ean })
+      await addItems(items.map(({ key, ...item }) => ({ ...item, quantity: Number(item.quantity), ean: addingProduct.ean })))
       setAddingProduct(null)
     } catch (e) {
       setCatalogError(e.message || 'No se pudo guardar el lote.')
@@ -166,6 +166,7 @@ export default function InventoryList() {
                   {r.quantity > 1 ? ` · x${r.quantity}` : ''}{r.location ? ` · ${r.location}` : ''}
                 </small>
                 {r.receivedDate && <small>Recepción: {r.receivedDate}</small>}
+                {r.openedDate && <small>Abierto: {r.openedDate} · {r.openedDays} días · vencimiento original: {r.sealedExpiryDate}</small>}
                 {r.product?.archived && <small>Archivado en otro dispositivo; el lote sigue activo.</small>}
               </div>
               <button className="icon-btn" aria-label="Recordatorio de calendario"

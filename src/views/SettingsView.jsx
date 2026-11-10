@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { exportAll, flush, clearLocal, pendingChanges } from '../lib/db'
+import { db, exportAll, flush, clearLocal, pendingChanges, importInventory } from '../lib/db'
+import { inventoryRows, parseInventoryRows } from '../lib/excel'
+import { ALARM_SOUNDS, getAlarmSound, setAlarmSound, playAlarm } from '../lib/alarm'
 import { getPushState, enablePush, disablePush } from '../lib/push'
 import { appVersion, buildCommit, buildDate, latestMigration } from '../lib/buildInfo'
 import ChangeEmail from './ChangeEmail'
@@ -38,6 +40,9 @@ export default function SettingsView({ email, userId, onLogout }) {
   const [geofence, setGeofence] = useState(getGeofenceForUseCase())
   const [err, setErr] = useState('')
   const [sessionLock, setSessionLock] = useState(() => isSessionLockEnabled(userId))
+  const [excelStatus, setExcelStatus] = useState('')
+  const [excelBusy, setExcelBusy] = useState(false)
+  const [alarmSound, setAlarmSoundState] = useState(getAlarmSound())
 
   useEffect(() => {
     getPushState().then(setState)
@@ -106,6 +111,45 @@ export default function SettingsView({ email, userId, onLogout }) {
     a.download = 'lector-vencimientos.json'
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  async function exportExcel() {
+    setExcelBusy(true)
+    setExcelStatus('')
+    try {
+      const { default: writeExcelFile } = await import('write-excel-file/browser')
+      const data = await db.transaction('r', db.products, db.items, async () =>
+        inventoryRows(await db.products.toArray(), await db.items.toArray(), userId))
+      const cells = data.map((row) => row.map((value) => ({ value, type: typeof value === 'number' ? Number : String })))
+      await writeExcelFile(cells).toFile('inventario-vencimientos.xlsx')
+      setExcelStatus('Excel exportado.')
+    } catch (error) {
+      console.error('Error al exportar Excel:', error)
+      setExcelStatus('No se pudo exportar el Excel.')
+    } finally {
+      setExcelBusy(false)
+    }
+  }
+
+  async function importExcel(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setExcelBusy(true)
+    setExcelStatus('')
+    try {
+      if (!/\.xlsx$/i.test(file.name) || file.size > 10 * 1024 * 1024) throw new Error('Elegí un archivo XLSX de hasta 10 MB.')
+      const { readSheet } = await import('read-excel-file/browser')
+      const inventory = parseInventoryRows(await readSheet(file), userId)
+      if (!confirm(`Se revisaron ${inventory.products.length} productos y ${inventory.items.length} lotes. Se agregarán solo los que no existan; no se modificará ningún registro existente. ¿Continuar?`)) return
+      const result = await importInventory(inventory)
+      setExcelStatus(`Importación completa: ${result.addedProducts} productos y ${result.addedItems} lotes nuevos.`)
+    } catch (error) {
+      console.error('Error al importar Excel:', error)
+      setExcelStatus(error.message || 'No se pudo importar el Excel.')
+    } finally {
+      setExcelBusy(false)
+    }
   }
 
   async function persistLocalAndRemote() {
@@ -179,6 +223,23 @@ export default function SettingsView({ email, userId, onLogout }) {
           </select>
         </label>
         <p className="hint">El aviso se envía una vez al día, por la mañana, para los productos que entraron en su plazo. Cada producto puede tener su propia anticipación.</p>
+        <label>
+          Sonido de alarma en este dispositivo
+          <select value={alarmSound} onChange={(event) => {
+            try {
+              setAlarmSound(event.target.value)
+              setAlarmSoundState(event.target.value)
+              setErr('')
+            } catch (error) { setErr(error.message) }
+          }}>
+            {Object.entries(ALARM_SOUNDS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+        </label>
+        <button type="button" className="btn" disabled={alarmSound === 'off'} onClick={() => {
+          setErr('')
+          playAlarm(alarmSound, { activate: true }).catch((error) => setErr(error.message))
+        }}>Probar sonido</button>
+        <p className="hint">El sonido elegido funciona con la app abierta y visible si el navegador permite audio. Tocá «Probar sonido» para habilitarlo. Con la app cerrada el sonido depende del sistema de notificaciones.</p>
       </div>
       <div className="card">
         <h3>Uso de la app</h3>
@@ -230,6 +291,13 @@ export default function SettingsView({ email, userId, onLogout }) {
         <p className="hint">Al activarlo, se solicita la contraseña con conexión a internet al abrir o desbloquear la app. Este bloqueo no cifra los datos del dispositivo.</p>
         {err && <p className="msg" role="alert">{err}</p>}
         <button className="btn" onClick={exportJson}>Exportar datos (JSON)</button>
+        <button className="btn" disabled={excelBusy} onClick={exportExcel}>Exportar inventario (Excel)</button>
+        <label>
+          Importar inventario (Excel)
+          <input type="file" accept=".xlsx" disabled={excelBusy} onChange={importExcel} />
+        </label>
+        <p className="hint">Usá como plantilla el Excel exportado. Escribí códigos y fechas como texto (fechas AAAA-MM-DD). No se sobrescriben productos ni lotes existentes. Para importar lotes de otra cuenta, borrá la columna id_lote de esas filas: se crearán como nuevos. Se incluyen lotes activos y sin stock, no el historial, fotos, recepción ni archivo de productos; no es una copia de seguridad completa.</p>
+        {excelStatus && <p className="msg" role="status">{excelStatus}</p>}
         <button className="btn danger" onClick={logout}>
           Cerrar sesión
         </button>

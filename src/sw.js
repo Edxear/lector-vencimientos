@@ -19,12 +19,18 @@ self.addEventListener('message', (e) => {
 self.addEventListener('push', (e) => {
   const data = e.data?.json() ?? {}
   e.waitUntil(
-    self.registration.showNotification(data.title || 'Próximo a vencer', {
-      body: data.body || '',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
-      tag: data.tag,
-    }),
+    Promise.all([
+      self.registration.showNotification(data.title || 'Próximo a vencer', {
+        body: data.body || '',
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        tag: data.tag,
+      }),
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        const visible = clients.find((client) => client.visibilityState === 'visible')
+        visible?.postMessage({ type: 'EXPIRY_ALARM' })
+      }),
+    ]),
   )
 })
 

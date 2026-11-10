@@ -22,10 +22,20 @@ export default function ItemFields({ value, onChange, onPhotoFile, allowZero = f
         Fecha de recepción (opcional)
         <input type="date" value={value.receivedDate || ''} onChange={(e) => set('receivedDate', e.target.value)} />
       </label>
+      <label>
+        Fecha de apertura (opcional)
+        <input type="date" value={value.openedDate || ''} onChange={(e) => set('openedDate', e.target.value)} />
+      </label>
+      <label>
+        Días de conservación una vez abierto
+        <input type="number" min="1" max="3650" step="1" inputMode="numeric" value={value.openedDays ?? ''}
+          onChange={(e) => set('openedDays', e.target.value)} placeholder="Ej: 3" />
+      </label>
+      <p className="hint">La apertura se aplica a todas las unidades del lote. Para abrir solo algunas, registralas en otro lote. Se usa la fecha más temprana entre el vencimiento original y la fecha calculada tras abrir.</p>
       <div className="two">
         <label>
           Cantidad
-          <input type="number" min={allowZero ? 0 : 1} inputMode="numeric" value={value.quantity}
+          <input type="number" min={allowZero ? 0 : 1} max="2147483647" step="1" inputMode="numeric" value={value.quantity}
             onChange={(e) => set('quantity', Math.max(allowZero ? 0 : 1, Number(e.target.value) || 0))} />
         </label>
         <label>
