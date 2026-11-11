@@ -4,8 +4,9 @@ import { db, exportAll, flush, clearLocal, pendingChanges, importInventory } fro
 import { inventoryRows, parseInventoryRows } from '../lib/excel'
 import { ALARM_SOUNDS, getAlarmSound, setAlarmSound, playAlarm } from '../lib/alarm'
 import { getPushState, enablePush, disablePush } from '../lib/push'
-import { appVersion, buildCommit, buildDate, latestMigration } from '../lib/buildInfo'
+import { appVersion, buildDate } from '../lib/buildInfo'
 import ChangeEmail from './ChangeEmail'
+import DeleteAccount from './DeleteAccount'
 import { isSessionLockEnabled, setSessionLockEnabled, SESSION_LOCK_EVENT } from '../lib/sessionLock'
 import {
   NOTIFY_OPTIONS,
@@ -272,13 +273,6 @@ export default function SettingsView({ email, userId, onLogout }) {
         <p className="hint">Se usa para decidir cuando una fecha como 03/04/27 puede leerse de más de una forma. Siempre podrás elegir otra lectura antes de guardar.</p>
       </div>
       <div className="card">
-        <h3>Versión</h3>
-        <p className="hint">App: {appVersion} · commit {buildCommit}</p>
-        <p className="hint">Build: {new Date(buildDate).toLocaleString()}</p>
-        <p className="hint">Última migración incluida: {latestMigration}</p>
-        <p className="hint">La migración indicada es la última disponible en el código; su aplicación en Supabase se realiza por separado.</p>
-      </div>
-      <div className="card">
         <h3>Cuenta</h3>
         <p className="hint">{email}</p>
         <ChangeEmail currentEmail={email} />
@@ -296,11 +290,21 @@ export default function SettingsView({ email, userId, onLogout }) {
           Importar inventario (Excel)
           <input type="file" accept=".xlsx" disabled={excelBusy} onChange={importExcel} />
         </label>
-        <p className="hint">Usá como plantilla el Excel exportado. Escribí códigos y fechas como texto (fechas AAAA-MM-DD). No se sobrescriben productos ni lotes existentes. Para importar lotes de otra cuenta, borrá la columna id_lote de esas filas: se crearán como nuevos. Se incluyen lotes activos y sin stock, no el historial, fotos, recepción ni archivo de productos; no es una copia de seguridad completa.</p>
+        <div className="excel-import-help">
+          <strong>¡Cargá tu stock en segundos!</strong>
+          <p>Usá el Excel exportado como plantilla, respetando códigos y fechas (AAAA-MM-DD) en formato texto.</p>
+          <ul><li><strong>Sin riesgos:</strong> No sobrescribe tus productos ni lotes actuales.</li></ul>
+        </div>
         {excelStatus && <p className="msg" role="status">{excelStatus}</p>}
+        <DeleteAccount email={email} onDeleted={() => onLogout?.()} />
         <button className="btn danger" onClick={logout}>
           Cerrar sesión
         </button>
+      </div>
+      <div className="card">
+        <h3>Versión</h3>
+        <p className="hint">Versión: {appVersion}</p>
+        <p className="hint">Actualizado: {new Date(buildDate).toLocaleString()}</p>
       </div>
     </div>
   )

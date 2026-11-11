@@ -26,7 +26,7 @@ export default function ChangeEmail({ currentEmail }) {
   }
 
   return (
-    <form onSubmit={submit}>
+    <form className="change-email-form" onSubmit={submit}>
       <label>
         Nuevo correo de la cuenta
         <input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />

@@ -6,7 +6,7 @@ const ORDER_KEY = 'lv-date-order'
 const GEOFENCE_KEY = 'lv-geofence'
 
 export const NOTIFY_OPTIONS = [3, 7, 15, 30]
-export const LOCATIONS = ['Almacén', 'Frío', 'Congelados', 'Bazar', 'Verdulería', 'Carnicería', 'Devolución Proveedor']
+export const LOCATIONS = ['Cocina', 'Heladera', 'Congelados', 'Despensa', 'Almacén', 'Frío', 'Bazar', 'Verdulería', 'Carnicería', 'Devolución Proveedor']
 export const CATEGORIES = ['Lácteos', 'Carnes', 'Frutas y verduras', 'Almacén', 'Bebidas', 'Congelados', 'Limpieza', 'Otros']
 export const APP_CONTEXTS = {
   hogar: {
@@ -43,6 +43,10 @@ export function getDefaultNotifyDays() {
 
 export function setDefaultNotifyDays(days) {
   localStorage.setItem(KEY, String(days))
+}
+
+export function clearLocalSettings() {
+  for (const key of [KEY, USE_KEY, ORDER_KEY, GEOFENCE_KEY]) localStorage.removeItem(key)
 }
 
 export function getAppUseCase() {

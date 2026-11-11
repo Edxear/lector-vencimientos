@@ -12,6 +12,10 @@ export function setAlarmSound(value) {
   localStorage.setItem(KEY, value)
 }
 
+export function clearAlarmSound() {
+  localStorage.removeItem(KEY)
+}
+
 export async function playAlarm(sound = getAlarmSound(), { activate = false } = {}) {
   if (sound === 'off') return
   const AudioContext = window.AudioContext || window.webkitAudioContext

@@ -51,9 +51,10 @@ export default function InventoryList() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!rows) return rows
-    return rows
+    const matches = rows
       .filter((r) => !area || (area === '__none' ? !r.location : r.location === area))
       .filter((r) => !q || [r.product?.name, r.product?.brand, r.product?.category, r.location, r.notes].some((v) => v?.toLowerCase().includes(q)))
+    return area === '' ? matches.sort((a, b) => a.expiryDate.localeCompare(b.expiryDate)) : matches
   }, [rows, query, area])
 
   const stats = useMemo(() => {
@@ -96,12 +97,12 @@ export default function InventoryList() {
   }
   const matchingCatalog = (catalog || []).filter((p) => !query.trim() || [p.name, p.brand, p.category, p.ean].some((v) => v?.toLowerCase().includes(query.trim().toLowerCase())))
   const catalogList = (products) => (
-      <ul className="list">
+      <ul className="list catalog-list">
         {products.map((p) => (
-          <li className="row" key={p.ean}>
+          <li className="row catalog-row" key={p.ean}>
             {p.imageUrl ? <img className="mini" src={p.imageUrl} alt="" /> : <div className="mini ph">📦</div>}
             <div className="info"><strong>{p.name || p.ean}</strong><small>{p.ean} · {p.archived ? 'Archivado' : 'Sin stock'}</small></div>
-            <div>
+            <div className="catalog-actions">
               <button type="button" className="btn small" onClick={() => { setCatalogError(''); setAddingProduct(p) }}>Agregar lote</button>
               <button type="button" className="btn small" onClick={() => archive(p, !p.archived)}>{p.archived ? 'Desarchivar' : 'Archivar'}</button>
             </div>
@@ -150,7 +151,7 @@ export default function InventoryList() {
         </div>
       )}
       {rows.length === 0 && <p className="msg">No hay lotes con stock. Podés agregar uno o consultar los productos sin stock.</p>}
-      <ul className="list">
+      <ul className={`list ${area === '' ? 'carousel' : ''}`} aria-label={area === '' ? 'Productos ordenados por vencimiento más próximo' : undefined}>
         {filtered.map((r) => {
           const days = daysUntil(r.expiryDate)
           const name = r.product?.name || r.ean

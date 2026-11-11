@@ -13,7 +13,7 @@ La idea central no es solo registrar productos: es transformar un problema cotid
 - Guarda los datos localmente y luego sincroniza con Supabase para persistencia por usuario.
 - Envía avisos de vencimiento antes de la fecha límite.
 - Ajusta alertas según el uso del usuario: hogar o comercio, con contexto y ubicación opcional.
-- Organiza productos por áreas como almacén, frío, congelados, bazar, verdulería, carnicería y devolución proveedor.
+- Organiza productos por áreas de hogar (cocina, heladera y despensa) y comercio (almacén, frío, congelados, bazar, verdulería, carnicería y devolución a proveedor); prioriza las áreas sugeridas según el uso elegido.
 - Permite importar productos desde tickets o texto para acelerar el alta masiva.
 - Registra el costo por unidad y permite marcar lotes vencidos como desperdicio para consultar las pérdidas en una analítica mensual.
 
@@ -142,6 +142,7 @@ La aplicación se divide en varios bloques:
 - Lectura OCR de la fecha y validación del resultado.
 - Guardado local y persistencia por usuario.
 - Registro e inicio de sesión individuales. Desde Ajustes se puede solicitar un cambio de correo de la cuenta; la confirmación depende de la configuración de Supabase Auth y puede requerir revisar el correo anterior y el nuevo.
+- Eliminación permanente de la cuenta y sus datos sincronizados desde Ajustes, con confirmación por correo. Las copias locales guardadas sin conexión en otros dispositivos deben borrarse allí.
 - Bloqueo de pantalla opcional por cuenta y dispositivo tras 15 minutos de inactividad. Para desbloquear se necesita conexión y la contraseña de la cuenta. El bloqueo no cifra los datos guardados en el dispositivo.
 - Organización por áreas y categorías.
 - Filtros por área y búsqueda.
@@ -151,9 +152,11 @@ La aplicación se divide en varios bloques:
 - Importación de compras desde texto, ticket o CSV.
 - Analítica de desperdicios por mes, basada en los lotes marcados explícitamente y en sus costos registrados.
 
-En Ajustes se muestran automáticamente la versión, el commit y la fecha del build desplegado, además de la última migración SQL incluida en el código. Esa información se genera durante el build (por ejemplo, al desplegar un push en Vercel); no confirma que la migración ya se haya ejecutado en Supabase.
+En Ajustes se muestran la versión y la fecha y hora del build. Esta información se genera durante la compilación.
 
-Para instalaciones existentes, aplicar en Supabase > SQL Editor las migraciones `migration_v*.sql` pendientes en orden **antes de desplegar** esta versión; en particular, `migration_v6.sql` es necesaria para sincronizar los lotes. Para instalaciones nuevas, ejecutar `schema.sql` y después todas las migraciones en orden; `schema.sql` no las sustituye. Los productos anteriores no tienen costo asignado y no se incluirán en los importes hasta que se complete ese dato.
+Para habilitar la eliminación de cuentas en Vercel, configurar `SUPABASE_SERVICE_ROLE_KEY` como variable de entorno del servidor. No usar el prefijo `VITE_` ni exponer esta clave al cliente: el endpoint de eliminación valida la sesión del usuario antes de borrar su cuenta y los datos relacionados.
+
+Para instalaciones existentes, aplicar en Supabase > SQL Editor las migraciones `migration_v*.sql` pendientes en orden **antes de desplegar** esta versión. `migration_v6.sql` agrega los datos de apertura por lote; `migration_v7.sql` asegura el borrado en cascada de datos de usuario al eliminar la cuenta. Para instalaciones nuevas, ejecutar `schema.sql` y después todas las migraciones en orden; `schema.sql` no las sustituye. Los productos anteriores no tienen costo asignado y no se incluirán en los importes hasta que se complete ese dato.
 
 
 ## Resultado final

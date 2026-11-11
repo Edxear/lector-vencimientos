@@ -1,11 +1,17 @@
 import { useState } from 'react'
-import { NOTIFY_OPTIONS, LOCATIONS } from '../lib/settings'
+import { NOTIFY_OPTIONS, LOCATIONS, APP_CONTEXTS, getAppUseCase } from '../lib/settings'
 import PhotoField from './PhotoField'
 
 // Datos propios de cada unidad/lote: vencimiento, cantidad, ubicación, aviso, notas y foto de la fecha
 export default function ItemFields({ value, onChange, onPhotoFile, allowZero = false }) {
   const [scanSignal, setScanSignal] = useState(0)
   const set = (k, v) => onChange({ ...value, [k]: v })
+  const zones = APP_CONTEXTS[getAppUseCase()].zones
+  const locations = [...LOCATIONS].sort((a, b) => {
+    const aIndex = zones.indexOf(a)
+    const bIndex = zones.indexOf(b)
+    return (aIndex < 0 ? zones.length : aIndex) - (bIndex < 0 ? zones.length : bIndex)
+  })
 
   return (
     <>
@@ -42,8 +48,8 @@ export default function ItemFields({ value, onChange, onPhotoFile, allowZero = f
           Área
           <select value={value.location} onChange={(e) => set('location', e.target.value)}>
             <option value="">Sin definir</option>
-            {value.location && !LOCATIONS.includes(value.location) && <option>{value.location}</option>}
-            {LOCATIONS.map((l) => <option key={l}>{l}</option>)}
+            {value.location && !locations.includes(value.location) && <option>{value.location}</option>}
+            {locations.map((l) => <option key={l}>{l}</option>)}
           </select>
         </label>
       </div>

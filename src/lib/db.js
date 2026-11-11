@@ -281,5 +281,5 @@ export async function pull() {
 }
 
 export async function clearLocal() {
-  await Promise.all([db.products.clear(), db.items.clear(), db.outbox.clear()])
+  await Promise.all([db.products.clear(), db.items.clear(), db.outbox.clear(), db.events.clear()])
 }
