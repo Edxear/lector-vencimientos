@@ -6,18 +6,12 @@ const ORDER_KEY = 'lv-date-order'
 const GEOFENCE_KEY = 'lv-geofence'
 
 export const NOTIFY_OPTIONS = [3, 7, 15, 30]
-export const LOCATIONS = ['Cocina', 'Heladera', 'Congelados', 'Despensa', 'Almacén', 'Frío', 'Bazar', 'Verdulería', 'Carnicería', 'Devolución Proveedor']
+export const LOCATIONS = ['Almacén', 'Frío', 'Congelados', 'Bazar', 'Verdulería', 'Carnicería', 'Devolución Proveedor']
 export const CATEGORIES = ['Lácteos', 'Carnes', 'Frutas y verduras', 'Almacén', 'Bebidas', 'Congelados', 'Limpieza', 'Otros']
 export const APP_CONTEXTS = {
-  hogar: {
-    label: 'Hogar',
-    zones: ['Cocina', 'Heladera', 'Congelados', 'Despensa', 'Bazar'],
-    geofenceLabel: 'la cocina',
-    radius: 150,
-  },
   comercio: {
     label: 'Comercio',
-    zones: ['Almacén', 'Frío', 'Verdulería', 'Carnicería', 'Bazar', 'Devolución Proveedor'],
+    zones: LOCATIONS,
     geofenceLabel: 'el local',
     radius: 400,
   },
@@ -50,17 +44,11 @@ export function clearLocalSettings() {
 }
 
 export function getAppUseCase() {
-  const v = localStorage.getItem(USE_KEY)
-  return APP_CONTEXTS[v] ? v : 'hogar'
-}
-
-export function setAppUseCase(value) {
-  if (!APP_CONTEXTS[value]) return
-  localStorage.setItem(USE_KEY, value)
+  return 'comercio'
 }
 
 export function getGeofenceForUseCase(useCase = getAppUseCase()) {
-  const safe = APP_CONTEXTS[useCase] ? useCase : 'hogar'
+  const safe = APP_CONTEXTS[useCase] ? useCase : 'comercio'
   const parsed = readGeofenceMap()
   const fallback = {
     latitude: 0,
@@ -74,7 +62,7 @@ export function getGeofenceForUseCase(useCase = getAppUseCase()) {
 }
 
 export function setGeofenceForUseCase(useCase, geofence) {
-  const safe = APP_CONTEXTS[useCase] ? useCase : 'hogar'
+  const safe = APP_CONTEXTS[useCase] ? useCase : 'comercio'
   const map = readGeofenceMap()
   map[safe] = {
     latitude: Number(geofence.latitude),
@@ -111,14 +99,15 @@ export async function syncUserSettingsToSupabase() {
   const { data: sessionData } = await supabase.auth.getSession()
   if (!sessionData?.session) return
 
+  const geofence = getGeofenceForUseCase()
   const payload = {
     user_id: sessionData.session.user.id,
     app_use_case: getAppUseCase(),
     date_order: getDateOrder(),
     default_notify_days: getDefaultNotifyDays(),
-    geofence_latitude: getGeofenceForUseCase().latitude || null,
-    geofence_longitude: getGeofenceForUseCase().longitude || null,
-    geofence_radius: getGeofenceForUseCase().radius || APP_CONTEXTS[getAppUseCase()].radius,
+    geofence_latitude: geofence.saved ? geofence.latitude : null,
+    geofence_longitude: geofence.saved ? geofence.longitude : null,
+    geofence_radius: geofence.radius,
   }
 
   const { error } = await supabase.from('user_settings').upsert(payload, { onConflict: 'user_id' })
@@ -136,21 +125,19 @@ export async function hydrateUserSettingsFromSupabase() {
   }
   if (!data) return
 
-  if (APP_CONTEXTS[data.app_use_case]) {
-    setAppUseCase(data.app_use_case)
-  }
   if (NOTIFY_OPTIONS.includes(Number(data.default_notify_days))) {
     setDefaultNotifyDays(Number(data.default_notify_days))
   }
   if (DATE_ORDER_OPTIONS.some((o) => o.value === data.date_order)) {
     setDateOrder(data.date_order)
   }
-  if (Number.isFinite(Number(data.geofence_latitude)) && Number.isFinite(Number(data.geofence_longitude))) {
-    setGeofenceForUseCase(data.app_use_case || getAppUseCase(), {
+  if (data.app_use_case === 'comercio' && data.geofence_latitude != null && data.geofence_longitude != null &&
+      Number.isFinite(Number(data.geofence_latitude)) && Number.isFinite(Number(data.geofence_longitude))) {
+    setGeofenceForUseCase('comercio', {
       latitude: Number(data.geofence_latitude),
       longitude: Number(data.geofence_longitude),
-      radius: Number(data.geofence_radius) || APP_CONTEXTS[data.app_use_case || getAppUseCase()].radius,
-      label: APP_CONTEXTS[data.app_use_case || getAppUseCase()].geofenceLabel,
+      radius: Number(data.geofence_radius) || APP_CONTEXTS.comercio.radius,
+      label: APP_CONTEXTS.comercio.geofenceLabel,
     })
   }
 }

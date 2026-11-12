@@ -27,7 +27,7 @@ async function getLocationContext() {
       navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 5000, maximumAge: 300000 })
     })
     const current = { latitude: pos.coords.latitude, longitude: pos.coords.longitude }
-    const geofenceActive = geofence.saved && geofence.latitude && geofence.longitude
+    const geofenceActive = geofence.saved && Number.isFinite(geofence.latitude) && Number.isFinite(geofence.longitude)
       ? haversineKm(current, geofence) <= (Number(geofence.radius) || ctx.radius) / 1000
       : false
     return {

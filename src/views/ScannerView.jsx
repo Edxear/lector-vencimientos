@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 
-export default function ScannerView({ onDetect }) {
+export default function ScannerView({ onDetect, onError }) {
   const videoRef = useRef(null)
   const [error, setError] = useState('')
   const supported = 'BarcodeDetector' in window
 
   useEffect(() => {
-    if (!supported) return
+    if (!supported) {
+      onError?.()
+      return
+    }
     let stream
     let stopped = false
     let detector
@@ -32,7 +35,10 @@ export default function ScannerView({ onDetect }) {
         await videoRef.current.play()
         loop()
       } catch (e) {
-        setError(e.message || 'No se pudo acceder a la cámara. Revisa los permisos.')
+        if (!stopped) {
+          onError?.()
+          setError(e.message || 'No se pudo acceder a la cámara. Revisa los permisos.')
+        }
       }
     }
 
@@ -56,9 +62,9 @@ export default function ScannerView({ onDetect }) {
       stopped = true
       stream?.getTracks().forEach((t) => t.stop())
     }
-  }, [supported, onDetect])
+  }, [supported, onDetect, onError])
 
-  if (!supported) return <p className="msg">Tu navegador no soporta escaneo. Usa la carga manual.</p>
+  if (!supported) return <p className="msg" role="status">Este navegador no permite escanear códigos con la cámara. No se solicitará acceso a la cámara para el código; ingresá el identificador manualmente o probá otro navegador compatible.</p>
 
   return (
     <div className="scanner">

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { supabase } from '../lib/supabase'
 import { db, exportAll, flush, clearLocal, pendingChanges, importInventory } from '../lib/db'
 import { inventoryRows, parseInventoryRows } from '../lib/excel'
+import { summarizeAddMetrics } from '../lib/addMetrics'
 import { ALARM_SOUNDS, getAlarmSound, setAlarmSound, playAlarm } from '../lib/alarm'
 import { getPushState, enablePush, disablePush } from '../lib/push'
 import { appVersion, buildDate } from '../lib/buildInfo'
@@ -17,7 +19,6 @@ import {
   getDateOrder,
   setDateOrder,
   getAppUseCase,
-  setAppUseCase,
   getGeofenceForUseCase,
   setGeofenceForUseCase,
   clearGeofenceForUseCase,
@@ -36,7 +37,7 @@ export default function SettingsView({ email, userId, onLogout }) {
   const [state, setState] = useState('off')
   const [days, setDays] = useState(getDefaultNotifyDays())
   const [order, setOrder] = useState(getDateOrder())
-  const [useCase, setUseCaseState] = useState(getAppUseCase())
+  const useCase = getAppUseCase()
   const [geoState, setGeoState] = useState('unknown')
   const [geofence, setGeofence] = useState(getGeofenceForUseCase())
   const [err, setErr] = useState('')
@@ -44,13 +45,14 @@ export default function SettingsView({ email, userId, onLogout }) {
   const [excelStatus, setExcelStatus] = useState('')
   const [excelBusy, setExcelBusy] = useState(false)
   const [alarmSound, setAlarmSoundState] = useState(getAlarmSound())
+  const metricEvents = useLiveQuery(() => db.events.where('type').anyOf('add_flow_start', 'add_flow_end').toArray(), [])
+  const metrics = summarizeAddMetrics(metricEvents || [])
 
   useEffect(() => {
     getPushState().then(setState)
     hydrateUserSettingsFromSupabase().finally(() => {
       setDays(getDefaultNotifyDays())
       setOrder(getDateOrder())
-      setUseCaseState(getAppUseCase())
       setGeofence(getGeofenceForUseCase())
     })
     if (!('geolocation' in navigator)) {
@@ -112,6 +114,21 @@ export default function SettingsView({ email, userId, onLogout }) {
     a.download = 'lector-vencimientos.json'
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  async function exportMetrics() {
+    try {
+      const events = await db.events.where('type').anyOf('add_flow_start', 'add_flow_end').toArray()
+      const url = URL.createObjectURL(new Blob([JSON.stringify({ summary: summarizeAddMetrics(events), events }, null, 2)], { type: 'application/json' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'metricas-alta-locales.json'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('No se pudieron exportar las métricas:', error)
+      setErr('No se pudieron exportar las métricas locales.')
+    }
   }
 
   async function exportExcel() {
@@ -180,13 +197,6 @@ export default function SettingsView({ email, userId, onLogout }) {
     }
   }
 
-  function handleUseCaseChange(nextUseCase) {
-    setUseCaseState(nextUseCase)
-    setAppUseCase(nextUseCase)
-    setGeofence(getGeofenceForUseCase(nextUseCase))
-    persistLocalAndRemote()
-  }
-
   function handleNotifyDaysChange(nextDays) {
     setDays(nextDays)
     setDefaultNotifyDays(nextDays)
@@ -243,18 +253,8 @@ export default function SettingsView({ email, userId, onLogout }) {
         <p className="hint">El sonido elegido funciona con la app abierta y visible si el navegador permite audio. Tocá «Probar sonido» para habilitarlo. Con la app cerrada el sonido depende del sistema de notificaciones.</p>
       </div>
       <div className="card">
-        <h3>Uso de la app</h3>
-        <label>
-          ¿Es para uso en hogar o comercio?
-          <select value={useCase} onChange={(e) => handleUseCaseChange(e.target.value)}>
-            {Object.entries(APP_CONTEXTS).map(([key, ctx]) => <option key={key} value={key}>{ctx.label}</option>)}
-          </select>
-        </label>
-        <p className="hint">Esto cambia el estilo de los avisos: para hogar se prioriza cocina/despensa; para comercio, almacén, frío y depósito.</p>
-      </div>
-      <div className="card">
         <h3>Ubicación</h3>
-        <p className="hint">Permite la ubicación para avisos más contextuales según el entorno: hogar o comercio.</p>
+        <p className="hint">Guardá la ubicación del local para recibir avisos contextuales.</p>
         <button className="btn primary" onClick={requestLocation}>Guardar punto de referencia</button>
         <button className="btn" onClick={handleClearGeofence}>Borrar geocerca</button>
         <p className="hint">Estado: {geoState === 'granted' ? 'Activada' : geoState === 'denied' ? 'Denegada' : geoState === 'unsupported' ? 'No disponible' : 'Sin permiso aún'}</p>
@@ -271,6 +271,14 @@ export default function SettingsView({ email, userId, onLogout }) {
           </select>
         </label>
         <p className="hint">Se usa para decidir cuando una fecha como 03/04/27 puede leerse de más de una forma. Siempre podrás elegir otra lectura antes de guardar.</p>
+      </div>
+      <div className="card">
+        <h3>Medición local del alta</h3>
+        <p className="hint">Solo en este dispositivo: {metrics.started} intentos, {metrics.completed} completados, {metrics.abandoned} abandonados y {metrics.incomplete} incompletos.</p>
+        <p className="hint">Tiempo medio de altas completadas: {metrics.averageDurationMs == null ? 'sin datos' : `${(metrics.averageDurationMs / 1000).toFixed(1)} s`}. Errores de escaneo, búsqueda, guardado u OCR registrados: {metrics.errors}.</p>
+        <p className="hint">Fechas OCR confirmadas sin edición: {metrics.ocrSuggested ? `${metrics.ocrUnedited}/${metrics.ocrSuggested} (${Math.round(metrics.ocrUnedited * 100 / metrics.ocrSuggested)} %)` : 'sin datos'}. Esto no mide la precisión real.</p>
+        <p className="hint">Los intentos incompletos pueden deberse a interrupciones; no se cuentan como abandonos confirmados. Al cerrar sesión se borran estos datos locales.</p>
+        <button type="button" className="btn" onClick={exportMetrics}>Exportar métricas locales</button>
       </div>
       <div className="card">
         <h3>Cuenta</h3>

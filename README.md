@@ -1,6 +1,6 @@
 # Lector Vencimientos
 
-Lector Vencimientos es una PWA Android-first pensada para controlar fechas de caducidad y evitar desperdicios en despensa, cocina, almacén o comercio. La app combina escaneo del producto, lectura OCR de la fecha, almacenamiento persistente por usuario y alertas inteligentes para avisar antes de que un alimento o producto caduque.
+Lector Vencimientos es una PWA Android-first enfocada en el control de stock, inventario y fechas de vencimiento para comercios. La app combina escaneo del producto, lectura OCR de la fecha, almacenamiento persistente por usuario y alertas para reducir pérdidas.
 
 La idea central no es solo registrar productos: es transformar un problema cotidiano (olvidar la fecha real de vencimiento o no saber qué tiene que consumir antes) en un flujo rápido, práctico y confiable desde el móvil.
 
@@ -12,8 +12,8 @@ La idea central no es solo registrar productos: es transformar un problema cotid
 - Detecta formatos de fecha reales y ambiguos (`DD/MM/YY`, `MM/DD/YY`, `YYYY-MM-DD`, abreviados, mes escrito, fechas con letras deformadas, etc.).
 - Guarda los datos localmente y luego sincroniza con Supabase para persistencia por usuario.
 - Envía avisos de vencimiento antes de la fecha límite.
-- Ajusta alertas según el uso del usuario: hogar o comercio, con contexto y ubicación opcional.
-- Organiza productos por áreas de hogar (cocina, heladera y despensa) y comercio (almacén, frío, congelados, bazar, verdulería, carnicería y devolución a proveedor); prioriza las áreas sugeridas según el uso elegido.
+- Ofrece alertas con ubicación opcional del local.
+- Organiza productos por áreas comerciales (almacén, frío, congelados, bazar, verdulería, carnicería y devolución a proveedor). Las áreas antiguas de los lotes existentes se conservan y siguen disponibles al filtrarlos o editarlos.
 - Permite importar productos desde tickets o texto para acelerar el alta masiva.
 - Registra el costo por unidad y permite marcar lotes vencidos como desperdicio para consultar las pérdidas en una analítica mensual.
 
@@ -48,9 +48,9 @@ La app ya no solo avisa con un mensaje fijo. Se incorporó un enfoque más conte
 
 - anticipación configurable por producto
 - notificaciones diarias basadas en vencimiento
-- avisos adaptados al uso del usuario (hogar, comercio, almacén, etc.)
+- avisos adaptados al contexto del comercio
 - geolocalización opcional y punto de referencia para detectar contexto de entorno
-- intención de notificar cuando el usuario está cerca de su punto de referencia (por ejemplo, cerca de la cocina o del comercio)
+- intención de notificar cuando el usuario está cerca del local
 
 ### 4) Persistencia local + sincronización en la nube
 La app está diseñada como local-first:
@@ -120,7 +120,7 @@ La aplicación se divide en varios bloques:
 4. Cron y notificaciones
    - chequeo diario de vencimientos
    - envío de avisos push
-   - lógica contextual según hogar/comercio y configuración del usuario
+   - lógica contextual según la ubicación y configuración del comercio
 
 5. Lógica de fechas y OCR
    - extracción del texto de la foto
@@ -130,7 +130,7 @@ La aplicación se divide en varios bloques:
 
 ## Funcionalidades principales
 
-- Escaneo de código de barras por cámara.
+- Escaneo de código de barras por cámara cuando el navegador admite `BarcodeDetector`. En otros navegadores se informa la limitación antes de pedir acceso a la cámara y se ofrece ingreso manual; esto no sustituye un escáner compatible.
 - Carga manual y edición de productos.
 - Foto del producto con ajuste de tamaño y calidad.
 - Foto de la fecha con recorte tipo Lens.
@@ -147,18 +147,22 @@ La aplicación se divide en varios bloques:
 - Organización por áreas y categorías.
 - Filtros por área y búsqueda.
 - Configuración de alertas por días de anticipación.
-- Permiso de ubicación y uso del entorno (hogar/comercio).
+- Permiso de ubicación y referencia opcional del local.
 - Cron de notificaciones y mensajes contextuales.
 - Importación de compras desde texto, ticket o CSV.
 - Analítica de desperdicios por mes, basada en los lotes marcados explícitamente y en sus costos registrados.
 
 En Ajustes se muestran la versión y la fecha y hora del build. Esta información se genera durante la compilación.
 
+Las preferencias de ubicación del modo anterior no se convierten automáticamente en una ubicación comercial: configurá el punto del local en Ajustes. Al sincronizar preferencias, la referencia anterior en la nube se reemplaza por la comercial o se elimina si no configuraste una. Los productos y lotes existentes no se borran ni cambian de área.
+
+En Ajustes, la medición local del alta muestra intentos, tiempo medio de los completados, errores de escaneo, búsqueda, guardado y OCR, y la proporción de primeras sugerencias OCR confirmadas sin edición. Este indicador no mide la precisión: hay que contrastar con etiquetas reales. La duración incluye pausas y se mide desde la apertura del alta; los errores solo se cuentan en intentos finalizados. Los intentos sin cierre registrado se muestran como incompletos, no como abandonos confirmados. La exportación específica de métricas contiene identificadores aleatorios, momentos, etapas y resultados, sin códigos, fechas ni texto OCR; no se sincroniza y se borra al cerrar sesión. La exportación general de datos incluye además los eventos anteriores, que pueden contener códigos y texto OCR.
+
 Para habilitar la eliminación de cuentas en Vercel, configurar `SUPABASE_SERVICE_ROLE_KEY` como variable de entorno del servidor. No usar el prefijo `VITE_` ni exponer esta clave al cliente: el endpoint de eliminación valida la sesión del usuario antes de borrar su cuenta y los datos relacionados.
 
-Para instalaciones existentes, aplicar en Supabase > SQL Editor las migraciones `migration_v*.sql` pendientes en orden **antes de desplegar** esta versión. `migration_v6.sql` agrega los datos de apertura por lote; `migration_v7.sql` asegura el borrado en cascada de datos de usuario al eliminar la cuenta. Para instalaciones nuevas, ejecutar `schema.sql` y después todas las migraciones en orden; `schema.sql` no las sustituye. Los productos anteriores no tienen costo asignado y no se incluirán en los importes hasta que se complete ese dato.
+Para instalaciones existentes, aplicar en Supabase > SQL Editor las migraciones `migration_v*.sql` pendientes en orden **antes de desplegar** esta versión. `migration_v6.sql` agrega los datos de apertura por lote; `migration_v7.sql` asegura el borrado en cascada de datos de usuario al eliminar la cuenta; `migration_v8.sql` establece los valores comerciales para nuevas preferencias sin modificar las existentes. Para instalaciones nuevas, ejecutar `schema.sql` y después todas las migraciones en orden; `schema.sql` no las sustituye. Los productos anteriores no tienen costo asignado y no se incluirán en los importes hasta que se complete ese dato.
 
 
 ## Resultado final
 
-Lector Vencimientos no es solo una app de control de inventario: es una herramienta móvil pensada para uso real en cocina, despensa, almacén o comercio, con foco en la lectura de fechas del mundo real, la usabilidad en Android y la automatización de alertas útiles para evitar desperdicios.
+Lector Vencimientos es una herramienta móvil de inventario comercial, con foco en la lectura de fechas, la usabilidad en Android y las alertas para reducir pérdidas.

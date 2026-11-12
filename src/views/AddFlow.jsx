@@ -6,19 +6,49 @@ import { getProduct, saveProduct, addItems, logEvent } from '../lib/db'
 import { lookupOpenFoodFacts } from '../lib/products'
 import { pushSupported, enablePush } from '../lib/push'
 
+function finishMetrics(metrics, outcome, extra = {}) {
+  if (!metrics || metrics.ended) return
+  metrics.ended = true
+  logEvent('add_flow_end', {
+    id: metrics.id, outcome, step: metrics.step,
+    durationMs: Math.max(0, Date.now() - metrics.startedAt), errors: metrics.errors, ...extra,
+  }).catch((error) => console.error('No se pudo registrar el resultado de la medición local:', error))
+}
+
 export default function AddFlow({ onDone }) {
   const [step, setStep] = useState('scan')
   const [product, setProduct] = useState(null)
   const [manualEan, setManualEan] = useState('')
   const [error, setError] = useState('')
   const abortRef = useRef(null)
+  const metricsRef = useRef(null)
+  const initialErrorsRef = useRef(0)
 
-  useEffect(() => () => abortRef.current?.abort(), [])
+  useEffect(() => {
+    const metrics = { id: crypto.randomUUID(), startedAt: Date.now(), errors: initialErrorsRef.current, step: 'scan', ended: false, saving: false, unmounted: false }
+    metricsRef.current = metrics
+    logEvent('add_flow_start', { id: metrics.id }).catch((error) => console.error('No se pudo registrar el inicio de la medición local:', error))
+    return () => {
+      abortRef.current?.abort()
+      metrics.unmounted = true
+      if (!metrics.saving) finishMetrics(metrics, 'abandoned')
+    }
+  }, [])
+
+  const recordError = useCallback(() => {
+    if (metricsRef.current && !metricsRef.current.ended) metricsRef.current.errors++
+    else if (!metricsRef.current) initialErrorsRef.current++
+  }, [])
+
+  useEffect(() => {
+    if (metricsRef.current) metricsRef.current.step = step
+  }, [step])
 
   const handleEan = useCallback(async (ean, format) => {
     ean = ean.trim()
     if (!ean) {
       setError('El código está vacío.')
+      recordError()
       return
     }
     abortRef.current?.abort()
@@ -39,6 +69,7 @@ export default function AddFlow({ onDone }) {
       setStep('confirm-product')
     } catch (e) {
       if (!ctrl.signal.aborted) {
+        recordError()
         setError(e.message || 'No se pudo buscar el producto en este dispositivo.')
         setStep('scan')
       }
@@ -56,26 +87,34 @@ export default function AddFlow({ onDone }) {
       await saveProduct(product)
       setStep('expiry')
     } catch (e) {
+      recordError()
       setError(e.message || 'No se pudo guardar el producto.')
     }
   }
 
   async function saveExpiry(items, meta) {
     setError('')
+    const metrics = metricsRef.current
+    if (metrics) metrics.saving = true
     try {
       await addItems(items.map(({ key, ...item }) => ({ ean: product.ean, ...item, quantity: Number(item.quantity) })))
+      finishMetrics(metrics, 'completed', { ocrSuggested: meta.ocrSuggested, ocrUnedited: meta.ocrUnedited })
       logEvent('expiry', { ocrUsed: !!meta.ocrText, candidates: meta.candidates.length, finalDate: items[0].expiryDate, ocrText: meta.ocrText })
       if (pushSupported() && Notification.permission === 'default') enablePush().catch(() => {})
-      onDone()
+      if (!metrics?.unmounted) onDone()
     } catch (e) {
-      setError(e.message || 'No se pudo guardar el lote.')
+      recordError()
+      if (metrics?.unmounted) finishMetrics(metrics, 'abandoned')
+      else setError(e.message || 'No se pudo guardar el lote.')
+    } finally {
+      if (metrics) metrics.saving = false
     }
   }
 
   if (step === 'scan')
     return (
       <>
-        <ScannerView onDetect={handleEan} />
+        <ScannerView onDetect={handleEan} onError={recordError} />
         <div className="card">
           <label>
             O ingresá el identificador a mano
@@ -109,5 +148,5 @@ export default function AddFlow({ onDone }) {
       </div>
     )
 
-  return <><ExpiryCapture onConfirm={saveExpiry} />{error && <p className="hint warn" role="alert">{error}</p>}</>
+  return <><ExpiryCapture onConfirm={saveExpiry} onOcrError={recordError} />{error && <p className="hint warn" role="alert">{error}</p>}</>
 }
