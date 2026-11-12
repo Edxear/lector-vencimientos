@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { recognizeExpiry } from '../lib/ocr'
-import { parsePurchaseImport } from '../lib/purchases'
-import { addItem, saveProduct } from '../lib/db'
+import { parsePurchaseImport, validatePurchaseLines } from '../lib/purchases'
+import { CATEGORIES, LOCATIONS } from '../lib/settings'
+import { importInventory } from '../lib/db'
 
 const MODES = [
   { id: 'ticket', label: 'Ticket', detail: 'Foto' },
@@ -87,7 +88,7 @@ export default function PurchaseImportView() {
         setStatus('No se detectaron productos. Probá con una imagen más clara o revisá el texto.')
         return
       }
-      setPreview(parsed.map((item) => ({ ...item, id: crypto.randomUUID() })))
+      setPreview(parsed.map((item) => ({ ...item, id: crypto.randomUUID(), expiryConfirmed: false })))
       setStage('review')
       setStatus(`${parsed.length} ${parsed.length === 1 ? 'producto detectado' : 'productos detectados'}. Revisá los datos antes de importar.`)
       setStatusType('status')
@@ -102,44 +103,47 @@ export default function PurchaseImportView() {
 
   function updatePreview(index, field, value) {
     setPreview((items) => items.map((item, current) => (
-      current === index ? { ...item, [field]: value } : item
+      current === index ? { ...item, [field]: value, ...(field === 'expiryDate' ? { expiryConfirmed: false } : {}) } : item
     )))
   }
 
   async function importAll() {
-    const invalid = preview.some((item) => (
-      !item.name.trim() || !item.expiryDate || !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0
-    ))
-    if (!preview.length || invalid) {
+    try {
+      validatePurchaseLines(preview)
+    } catch (error) {
       setStatusType('alert')
-      setStatus('Completá el nombre, la cantidad y la fecha de vencimiento de cada producto.')
+      setStatus(error.message)
       return
     }
     setBusy(true)
     setStatus('Importando al inventario…')
     setStatusType('status')
     try {
+      const products = []
+      const items = []
       for (const [index, line] of preview.entries()) {
         const ean = makeSyntheticEan(index)
-        await saveProduct({
+        products.push({
           ean,
           name: line.name.trim(),
           brand: line.brand || '',
-          content: line.unit ? `${line.quantity} ${line.unit}` : '',
+          content: line.content || '',
           category: line.category || 'Otros',
           imageUrl: '',
           source: 'purchase-import',
         })
-        await addItem({
+        items.push({
+          id: crypto.randomUUID(),
           ean,
           expiryDate: line.expiryDate,
           receivedDate: line.receivedDate || '',
-          quantity: Number(line.quantity) || 1,
-          location: line.location || 'Almacén',
+          quantity: Number(line.quantity),
+          location: line.location,
           notes: `${line.supermarket || 'Compra'} · ${line.source || 'importación'}`,
           notifyDays: Number(line.notifyDays) || 15,
         })
       }
+      await importInventory({ products, items })
       setStage('done')
       setStatus(`${preview.length} ${preview.length === 1 ? 'producto importado' : 'productos importados'} al inventario.`)
       setText('')
@@ -148,7 +152,7 @@ export default function PurchaseImportView() {
     } catch (error) {
       console.error('No se pudo importar la compra:', error)
       setStatusType('alert')
-      setStatus('No se pudo completar la importación. Revisá el inventario antes de volver a intentarlo.')
+      setStatus('No se pudo completar la importación. No se guardaron los productos; revisá los datos e intentá de nuevo.')
     } finally {
       setBusy(false)
     }
@@ -266,21 +270,27 @@ export default function PurchaseImportView() {
           <div className="purchase-review-heading">
             <div>
               <h4>Revisá tu compra</h4>
-              <p className="hint">Podés corregir los datos antes de agregarlos al inventario.</p>
+              <p className="hint">Revisá cada línea. Las fechas son estimaciones, no se leen del envase: confirmalas o corregilas antes de importar.</p>
             </div>
             <button type="button" className="btn small" disabled={busy} onClick={() => setStage('input')}>Volver</button>
           </div>
+          <fieldset className="purchase-review-fields" disabled={busy}>
           <ul className="list purchase-preview">
             {preview.map((item, index) => (
               <li key={item.id} className="purchase-preview-item">
+                {item.originalLine && <p className="hint">Línea detectada: {item.originalLine}</p>}
                 <label>
                   Producto
                   <input value={item.name} required onChange={(event) => updatePreview(index, 'name', event.target.value)} />
                 </label>
+                <label>
+                  Contenido del producto (opcional)
+                  <input value={item.content || ''} placeholder="Ej: 1 L" onChange={(event) => updatePreview(index, 'content', event.target.value)} />
+                </label>
                 <div className="two">
                   <label>
                     Cantidad
-                    <input type="number" min="0.01" step="any" value={item.quantity}
+                    <input type="number" min="1" max="2147483647" step="1" value={item.quantity}
                       onChange={(event) => updatePreview(index, 'quantity', event.target.value)} />
                   </label>
                   <label>
@@ -290,14 +300,32 @@ export default function PurchaseImportView() {
                   </label>
                 </div>
                 <label>
+                  <span><input type="checkbox" checked={item.expiryConfirmed} onChange={(event) => updatePreview(index, 'expiryConfirmed', event.target.checked)} /> Confirmé esta fecha de vencimiento</span>
+                </label>
+                <label>
                   Fecha de recepción (opcional)
                   <input type="date" value={item.receivedDate || ''}
                     onChange={(event) => updatePreview(index, 'receivedDate', event.target.value)} />
                 </label>
-                <p className="hint">{item.category} · {item.location || 'Almacén'}</p>
+                <div className="two">
+                  <label>Categoría
+                    <input list="purchase-categories" value={item.category || ''} onChange={(event) => updatePreview(index, 'category', event.target.value)} />
+                  </label>
+                  <label>Área
+                    <select value={item.location || ''} onChange={(event) => updatePreview(index, 'location', event.target.value)}>
+                      <option value="">Sin definir</option>
+                      {item.location && !LOCATIONS.includes(item.location) && <option>{item.location}</option>}
+                      {LOCATIONS.map((location) => <option key={location}>{location}</option>)}
+                    </select>
+                  </label>
+                </div>
+                <button type="button" className="btn small" disabled={busy} onClick={() => setPreview((items) => items.filter((entry) => entry.id !== item.id))}>Quitar línea</button>
               </li>
             ))}
           </ul>
+          <datalist id="purchase-categories">{CATEGORIES.map((category) => <option key={category} value={category} />)}</datalist>
+          <p className="hint">La cantidad representa unidades enteras de inventario.</p>
+          </fieldset>
           <button type="button" className="btn primary purchase-primary" disabled={busy} onClick={importAll}>
             {busy ? 'Importando…' : 'Confirmar e importar al inventario'}
           </button>

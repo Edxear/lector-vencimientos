@@ -59,6 +59,7 @@ La app está diseñada como local-first:
 - sincroniza con Supabase por usuario
 - resiste fallas de conectividad y puede recuperar datos luego
 - mantiene una cola de sincronización para no perder registros
+- muestra en Ajustes los cambios pendientes y la última sincronización completa del inventario en este dispositivo; permite reintentar
 
 Esto hace que el producto sea práctico en Android incluso si la conexión es intermitente.
 
@@ -83,6 +84,8 @@ La app incluye una capa de importación para no tener que cargar cada producto a
 - detección de supermercado
 - estimación de vencimiento según el tipo de producto
 - alta de productos en lote desde un CSV o texto
+
+Las fechas propuestas son estimaciones, no fechas leídas del envase. Antes de importar, revisá la línea detectada y confirmá cada vencimiento; también podés corregir los datos o quitar líneas. La cantidad se registra en unidades enteras. La importación se guarda como una transacción local y luego se sincroniza. Las reglas de tickets todavía requieren validación con muestras reales de distintos comercios y países.
 
 Esto crea una diferencia importante frente a apps tradicionales: reduce mucho el trabajo manual y ayuda a la gestión del stock para compras frecuentes.
 
@@ -151,8 +154,13 @@ La aplicación se divide en varios bloques:
 - Cron de notificaciones y mensajes contextuales.
 - Importación de compras desde texto, ticket o CSV.
 - Analítica de desperdicios por mes, basada en los lotes marcados explícitamente y en sus costos registrados.
+- Comparación de pérdidas y ahorro estimado con el mes anterior y exportación CSV de los últimos seis meses; se indican los lotes sin costo, cuyos importes no se conocen.
 
 En Ajustes se muestran la versión y la fecha y hora del build. Esta información se genera durante la compilación.
+
+El estado y permiso de avisos y la opción para reintentar el registro push están disponibles en Ajustes. Una suscripción activa no garantiza la entrega: también dependen de la conexión, el navegador, el servicio push y la configuración del servidor. La última sincronización indicada corresponde al inventario, no confirma la sincronización de preferencias ni la entrega de avisos.
+
+El cron informa `failedSends` y responde con estado 503 cuando falla algún envío push temporal; los avisos entregados se marcan igualmente y las suscripciones vencidas se eliminan. Revisá los registros del servidor ante estos fallos: la respuesta del cron no se muestra en la app y no garantiza un reintento automático.
 
 Las preferencias de ubicación del modo anterior no se convierten automáticamente en una ubicación comercial: configurá el punto del local en Ajustes. Al sincronizar preferencias, la referencia anterior en la nube se reemplaza por la comercial o se elimina si no configuraste una. Los productos y lotes existentes no se borran ni cambian de área.
 

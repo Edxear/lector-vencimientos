@@ -27,13 +27,13 @@ import {
 } from '../lib/settings'
 
 const STATE_TEXT = {
-  on: 'Activados en este dispositivo',
+  on: 'Suscripción activa en este dispositivo',
   off: 'Desactivados',
   denied: 'Bloqueados en el navegador. Habilítalos desde los ajustes del sitio.',
   unsupported: 'No disponibles en este navegador',
 }
 
-export default function SettingsView({ email, userId, onLogout }) {
+export default function SettingsView({ email, userId, onLogout, lastSync, pending, online, syncError, onSync, onPushChanged }) {
   const [state, setState] = useState('off')
   const [days, setDays] = useState(getDefaultNotifyDays())
   const [order, setOrder] = useState(getDateOrder())
@@ -47,10 +47,19 @@ export default function SettingsView({ email, userId, onLogout }) {
   const [alarmSound, setAlarmSoundState] = useState(getAlarmSound())
   const metricEvents = useLiveQuery(() => db.events.where('type').anyOf('add_flow_start', 'add_flow_end').toArray(), [])
   const metrics = summarizeAddMetrics(metricEvents || [])
+  const permission = !('Notification' in window) ? 'No disponible'
+    : Notification.permission === 'granted' ? 'Concedido'
+      : Notification.permission === 'denied' ? 'Bloqueado' : 'Sin solicitar'
 
   useEffect(() => {
-    getPushState().then(setState)
-    hydrateUserSettingsFromSupabase().finally(() => {
+    getPushState().then(setState).catch((error) => {
+      console.error('No se pudo consultar el estado de avisos:', error)
+      setErr('No se pudo consultar el estado de avisos. Recargá la página e intentá nuevamente.')
+    })
+    hydrateUserSettingsFromSupabase().catch((error) => {
+      console.error('No se pudieron cargar las preferencias:', error)
+      setErr('No se pudieron cargar las preferencias de la nube. Revisá la conexión y volvé a abrir Ajustes.')
+    }).finally(() => {
       setDays(getDefaultNotifyDays())
       setOrder(getDateOrder())
       setGeofence(getGeofenceForUseCase())
@@ -69,10 +78,29 @@ export default function SettingsView({ email, userId, onLogout }) {
     try {
       if (state === 'on') await disablePush()
       else await enablePush()
+      await onPushChanged()
     } catch (e) {
-      setErr(e.message)
+      console.error('No se pudo cambiar el estado de avisos:', e)
+      setErr('No se pudieron actualizar los avisos. Revisá los permisos y la conexión, e intentá nuevamente.')
     }
-    setState(await getPushState())
+    try {
+      setState(await getPushState())
+    } catch (error) {
+      console.error('No se pudo consultar el estado de avisos:', error)
+      setErr('No se pudo consultar el estado de avisos. Recargá la página e intentá nuevamente.')
+    }
+  }
+
+  async function retryNotifications() {
+    setErr('')
+    try {
+      await enablePush()
+      await onPushChanged()
+      setState(await getPushState())
+    } catch (error) {
+      console.error('No se pudo registrar la suscripción de avisos:', error)
+      setErr('No se pudieron registrar los avisos. Revisá los permisos y la conexión, e intentá nuevamente.')
+    }
   }
 
   async function logout() {
@@ -171,7 +199,12 @@ export default function SettingsView({ email, userId, onLogout }) {
   }
 
   async function persistLocalAndRemote() {
-    await syncUserSettingsToSupabase().catch(() => { })
+    try {
+      await syncUserSettingsToSupabase()
+    } catch (error) {
+      console.error('No se pudieron sincronizar las preferencias:', error)
+      setErr('Las preferencias se guardaron en este dispositivo, pero no se sincronizaron. Revisá la conexión y volvé a cambiar el ajuste.')
+    }
   }
 
   async function requestLocation() {
@@ -221,11 +254,14 @@ export default function SettingsView({ email, userId, onLogout }) {
       <div className="card">
         <h3>Avisos de vencimiento</h3>
         <p className="hint">Estado: {STATE_TEXT[state]}</p>
+        <p className="hint">Permiso de notificaciones: {permission}.</p>
+        <p className="hint">La suscripción del navegador no garantiza la entrega de cada aviso. Revisá también los permisos y la configuración del dispositivo.</p>
         {(state === 'on' || state === 'off') && (
           <button className={`btn ${state === 'off' ? 'primary' : ''}`} onClick={toggle}>
             {state === 'on' ? 'Desactivar avisos' : 'Activar avisos'}
           </button>
         )}
+        {state === 'on' && <button className="btn" onClick={retryNotifications}>Reintentar registro de avisos</button>}
         {err && <p className="msg">{err}</p>}
         <label>
           Anticipación por defecto (productos nuevos)
@@ -251,6 +287,13 @@ export default function SettingsView({ email, userId, onLogout }) {
           playAlarm(alarmSound, { activate: true }).catch((error) => setErr(error.message))
         }}>Probar sonido</button>
         <p className="hint">El sonido elegido funciona con la app abierta y visible si el navegador permite audio. Tocá «Probar sonido» para habilitarlo. Con la app cerrada el sonido depende del sistema de notificaciones.</p>
+      </div>
+      <div className="card">
+        <h3>Sincronización del inventario</h3>
+        <p className="hint">{online ? 'Con conexión' : 'Sin conexión'} · {pending} cambios pendientes</p>
+        <p className="hint">Última sincronización completa en este dispositivo: {lastSync ? new Date(lastSync).toLocaleString('es-AR') : 'sin registro'}.</p>
+        {syncError && <p className="hint warn" role="alert">{syncError}</p>}
+        <button type="button" className="btn" disabled={!online} onClick={onSync}>Sincronizar ahora</button>
       </div>
       <div className="card">
         <h3>Ubicación</h3>

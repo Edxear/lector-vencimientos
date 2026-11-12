@@ -42,14 +42,23 @@ export async function disablePush() {
   const reg = await navigator.serviceWorker.ready
   const sub = await reg.pushManager.getSubscription()
   if (!sub) return
-  await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
-  await sub.unsubscribe()
+  let deleteError
+  try {
+    const { error } = await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+    if (error) throw error
+  } catch (error) {
+    deleteError = error
+  }
+  if (!(await sub.unsubscribe())) throw new Error('No se pudo desactivar la suscripción del navegador.')
+  if (deleteError) throw deleteError
 }
 
 // Reasocia la suscripción existente con el usuario que acaba de entrar
 export async function syncPushSubscription() {
-  if (!pushSupported() || Notification.permission !== 'granted') return
+  if (!pushSupported() || Notification.permission !== 'granted') return false
   const reg = await navigator.serviceWorker.ready
   const sub = await reg.pushManager.getSubscription()
-  if (sub) await saveSubscription(sub).catch(() => {})
+  if (!sub) return false
+  await saveSubscription(sub)
+  return true
 }

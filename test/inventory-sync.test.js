@@ -60,6 +60,7 @@ test('recepción y archivo sobreviven offline, sincronización y descarga sin bo
   console.error = () => {}
   try {
     assert.equal(await flush(), false)
+    assert.equal(await pull(), false)
   } finally {
     console.error = originalError
   }
@@ -69,7 +70,7 @@ test('recepción y archivo sobreviven offline, sincronización y descarga sin bo
   failure = false
   assert.equal(await flush(), true)
   assert.equal(await db.outbox.count(), 0)
-  await pull()
+  assert.equal(await pull(), true)
   assert.equal((await db.items.get(id)).receivedDate, '2029-12-02')
   assert.equal((await db.items.get(id)).wastedAt, 1234)
   assert.equal((await db.products.get('123')).archived, true)
@@ -77,6 +78,7 @@ test('recepción y archivo sobreviven offline, sincronización y descarga sin bo
   assert.equal((await db.products.get('123')).category, 'Lácteos')
 
   navigator.onLine = false
+  assert.equal(await pull(), false)
   const newId = await addItem({ ean: '123', expiryDate: '2031-01-01' })
   assert.equal((await db.products.get('123')).archived, false)
   assert.equal((await db.items.get(newId)).receivedDate, '')
@@ -154,5 +156,12 @@ test('recepción y archivo sobreviven offline, sincronización y descarga sin bo
   assert.deepEqual(await store.importInventory(imported), { addedProducts: 1, addedItems: 1 })
   assert.deepEqual(await store.importInventory(imported), { addedProducts: 0, addedItems: 0 })
   assert.equal((await db.items.get(importedId)).quantity, 2)
+  const pendingBefore = await db.outbox.count()
+  await assert.rejects(store.importInventory({
+    products: [{ ean: 'transaccion', name: 'Transacción' }],
+    items: [{ id: '00000000-0000-4000-8000-000000000004', ean: 'ausente', expiryDate: '2036-01-01', quantity: 1 }],
+  }), /No se encontró el producto/)
+  assert.equal(await db.products.get('transaccion'), undefined)
+  assert.equal(await db.outbox.count(), pendingBefore)
   await db.delete()
 })

@@ -96,8 +96,9 @@ export function setDateOrder(order) {
 }
 
 export async function syncUserSettingsToSupabase() {
-  const { data: sessionData } = await supabase.auth.getSession()
-  if (!sessionData?.session) return
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError) throw sessionError
+  if (!sessionData?.session) throw new Error('No hay una sesión disponible para sincronizar las preferencias.')
 
   const geofence = getGeofenceForUseCase()
   const payload = {
@@ -111,17 +112,17 @@ export async function syncUserSettingsToSupabase() {
   }
 
   const { error } = await supabase.from('user_settings').upsert(payload, { onConflict: 'user_id' })
-  if (error) console.warn('No se pudieron sincronizar las preferencias de usuario:', error.message)
+  if (error) throw error
 }
 
 export async function hydrateUserSettingsFromSupabase() {
-  const { data: sessionData } = await supabase.auth.getSession()
-  if (!sessionData?.session) return
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError) throw sessionError
+  if (!sessionData?.session) throw new Error('No hay una sesión disponible para cargar las preferencias.')
 
   const { data, error } = await supabase.from('user_settings').select('*').maybeSingle()
   if (error && error.code !== 'PGRST116') {
-    console.warn('No se pudieron cargar las preferencias desde Supabase:', error.message)
-    return
+    throw error
   }
   if (!data) return
 

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { getMonthlyReuseSavings, getWasteAnalytics, formatWasteCurrency, shouldAutoWaste, expiredAt } from '../src/lib/waste.js'
+import { getMonthlyReuseSavings, getMonthlyWasteTrends, wasteTrendsCsv, getWasteAnalytics, formatWasteCurrency, shouldAutoWaste, expiredAt } from '../src/lib/waste.js'
 
 test('un lote vencido se registra solo como pérdida con la fecha en que venció', () => {
   const now = new Date(2026, 10, 5, 10).getTime()
@@ -73,4 +73,17 @@ test('estima el ahorro mensual solo para productos consumidos a tiempo', () => {
   assert.equal(total, 50)
   assert.equal(pricedLots, 1)
   assert.equal(totalLots, 2)
+})
+
+test('compara y exporta pérdidas y ahorro mensual con lotes sin costo', () => {
+  const trends = getMonthlyWasteTrends([
+    { wastedAt: new Date(2026, 10, 4).getTime(), unitCost: 10, quantity: 2 },
+    { wastedAt: new Date(2026, 10, 5).getTime(), unitCost: null, quantity: 1 },
+    { reusedAt: new Date(2026, 9, 3).getTime(), reuseLabel: 'Consumido a tiempo', unitCost: 5, quantity: 3 },
+    { reusedAt: new Date(2026, 9, 4).getTime(), reuseLabel: 'Consumido a tiempo', unitCost: null, quantity: 1 },
+  ], new Date(2026, 10, 15))
+  assert.deepEqual([trends.at(-1).key, trends.at(-1).total, trends.at(-1).lots, trends.at(-1).unpriced], ['2026-11', 20, 2, 1])
+  assert.deepEqual([trends.at(-2).savings, trends.at(-2).reusedLots, trends.at(-2).reusedUnpriced], [15, 2, 1])
+  assert.match(wasteTrendsCsv(trends), /2026-11,20,2,1,0,0,0\r\n/)
+  assert.match(wasteTrendsCsv(trends), /2026-10,0,0,0,15,2,1\r\n/)
 })

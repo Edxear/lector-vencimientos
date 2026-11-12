@@ -365,6 +365,7 @@ nav button:focus-visible {
 .purchase-review-heading > div { display: grid; gap: 4px; }
 .purchase-review-heading h4, .purchase-complete h4 { margin: 0; color: var(--navy2); font-size: 1.05rem; }
 .purchase-preview { gap: 10px; }
+.purchase-review-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 .purchase-preview-item { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
 .purchase-preview-item label { display: grid; gap: 5px; color: var(--muted); font-size: .8rem; }
 .purchase-preview-item .two { grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); }

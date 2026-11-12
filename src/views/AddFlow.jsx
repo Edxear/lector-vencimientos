@@ -15,7 +15,7 @@ function finishMetrics(metrics, outcome, extra = {}) {
   }).catch((error) => console.error('No se pudo registrar el resultado de la medición local:', error))
 }
 
-export default function AddFlow({ onDone }) {
+export default function AddFlow({ onDone, onPushError }) {
   const [step, setStep] = useState('scan')
   const [product, setProduct] = useState(null)
   const [manualEan, setManualEan] = useState('')
@@ -100,7 +100,10 @@ export default function AddFlow({ onDone }) {
       await addItems(items.map(({ key, ...item }) => ({ ean: product.ean, ...item, quantity: Number(item.quantity) })))
       finishMetrics(metrics, 'completed', { ocrSuggested: meta.ocrSuggested, ocrUnedited: meta.ocrUnedited })
       logEvent('expiry', { ocrUsed: !!meta.ocrText, candidates: meta.candidates.length, finalDate: items[0].expiryDate, ocrText: meta.ocrText })
-      if (pushSupported() && Notification.permission === 'default') enablePush().catch(() => {})
+      if (pushSupported() && Notification.permission === 'default') enablePush().catch((error) => {
+        console.error('No se pudieron activar los avisos push:', error)
+        onPushError?.()
+      })
       if (!metrics?.unmounted) onDone()
     } catch (e) {
       recordError()

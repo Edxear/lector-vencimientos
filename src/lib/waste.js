@@ -25,6 +25,7 @@ export function getWasteAnalytics(items, now = new Date()) {
       label: new Intl.DateTimeFormat('es-AR', { month: 'short' }).format(date).replace('.', ''),
       total: 0,
       unpriced: 0,
+      lots: 0,
     })
   }
 
@@ -56,11 +57,29 @@ export function getWasteAnalytics(items, now = new Date()) {
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
     const month = months.find((entry) => entry.key === key)
     if (!month) continue
+    month.lots += 1
     if (hasCost) month.total += safeAmount
     else month.unpriced += 1
   }
 
   return { months, totalLoss, pricedLots, unpricedLots, byArea: Object.values(byArea).sort((a, b) => b.total - a.total || b.lots - a.lots) }
+}
+
+export function getMonthlyWasteTrends(items, now = new Date()) {
+  const { months } = getWasteAnalytics(items, now)
+  return months.map((month) => {
+    const [year, monthNumber] = month.key.split('-').map(Number)
+    const savings = getMonthlyReuseSavings(items, new Date(year, monthNumber - 1, 1))
+    return { ...month, savings: savings.total, reusedLots: savings.totalLots, reusedUnpriced: savings.totalLots - savings.pricedLots }
+  })
+}
+
+export function wasteTrendsCsv(months) {
+  const rows = [
+    ['mes', 'perdida_ars', 'lotes_perdidos', 'perdidas_sin_costo', 'ahorro_estimado_ars', 'lotes_aprovechados', 'aprovechados_sin_costo'],
+    ...months.map((month) => [month.key, month.total, month.lots, month.unpriced, month.savings, month.reusedLots, month.reusedUnpriced]),
+  ]
+  return rows.map((row) => row.join(',')).join('\r\n') + '\r\n'
 }
 
 export function getMonthlyReuseSavings(items, now = new Date()) {

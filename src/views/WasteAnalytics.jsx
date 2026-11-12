@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, updateItem } from '../lib/db'
-import { getMonthlyReuseSavings, getWasteAnalytics, formatWasteCurrency, REUSE_LABELS } from '../lib/waste'
+import { getMonthlyReuseSavings, getWasteAnalytics, getMonthlyWasteTrends, wasteTrendsCsv, formatWasteCurrency, REUSE_LABELS } from '../lib/waste'
 
 const compactCurrency = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -33,12 +33,24 @@ export default function WasteAnalytics() {
   const analytics = useMemo(() => (items ? getWasteAnalytics(items) : null), [items])
   const sortedItems = useMemo(() => (items ? [...items].sort((a, b) => b.wastedAt - a.wastedAt) : []), [items])
   const savings = useMemo(() => (all ? getMonthlyReuseSavings(all) : null), [all])
+  const trends = useMemo(() => (all ? getMonthlyWasteTrends(all) : []), [all])
 
   if (!items || !savings) return null
 
   const { months, totalLoss, pricedLots, unpricedLots, byArea } = analytics
   const max = Math.max(1, ...months.map((month) => month.total))
   const activeMonths = months.filter((month) => month.total > 0).length
+  const current = trends.at(-1)
+  const previous = trends.at(-2)
+
+  function exportTrends() {
+    const url = URL.createObjectURL(new Blob(['\uFEFF', wasteTrendsCsv(trends)], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'tendencias-inventario.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
 
   async function run(action, fallback) {
     setError('')
@@ -128,6 +140,14 @@ export default function WasteAnalytics() {
           </p>
         )}
         <p className="hint">Valor total de productos vencidos por mes.</p>
+        <p className="hint">
+          Mes actual: {formatWasteCurrency(current.total)} · mes anterior: {formatWasteCurrency(previous.total)}.
+          {current.unpriced || previous.unpriced ? ' Hay lotes sin costo; la comparación es parcial.' : ' Comparación de costos registrados.'}
+        </p>
+        <p className="hint">Ahorro estimado por productos consumidos a tiempo: {formatWasteCurrency(current.savings)} este mes y {formatWasteCurrency(previous.savings)} el anterior.
+          {(current.reusedUnpriced || previous.reusedUnpriced) ? ' Hay lotes aprovechados sin costo; los importes son parciales.' : ''}
+        </p>
+        <button type="button" className="btn" onClick={exportTrends}>Exportar tendencias (CSV)</button>
       </section>
 
       {byArea.length > 0 && (

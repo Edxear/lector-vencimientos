@@ -21,6 +21,8 @@ export default function App() {
   const [tab, setTab] = useState('list')
   const [session, setSession] = useState(undefined)
   const [syncError, setSyncError] = useState('')
+  const [pushError, setPushError] = useState('')
+  const [lastSync, setLastSync] = useState(null)
   const [alarmError, setAlarmError] = useState('')
   const pending = useLiveQuery(() => db.outbox.count(), [], 0)
   const [online, setOnline] = useState(navigator.onLine)
@@ -49,6 +51,19 @@ export default function App() {
   const lockEnabled = isSessionLockEnabled(userId)
   const locked = unlockedFor !== userId
   const bannerMessage = syncBannerMessage({ online, pending, syncError })
+
+  useEffect(() => {
+    if (!userId) {
+      setLastSync(null)
+      return
+    }
+    try {
+      setLastSync(localStorage.getItem(`lv-last-sync-${userId}`))
+    } catch (error) {
+      console.warn('No se pudo leer la última sincronización:', error)
+      setLastSync(null)
+    }
+  }, [userId])
 
   useEffect(() => {
     const updateLock = () => {
@@ -102,7 +117,18 @@ export default function App() {
 
   const sync = useCallback(async () => {
     try {
-      await pull()
+      if (await pull()) {
+        const time = new Date().toISOString()
+        setLastSync(time)
+        if (userId) {
+          try {
+            localStorage.setItem(`lv-last-sync-${userId}`, time)
+          } catch (error) {
+            console.warn('No se pudo guardar la última sincronización:', error)
+          }
+        }
+        setSyncError('')
+      }
     } catch (error) {
       console.error('Error al actualizar los datos desde la nube:', error)
       setSyncError('No se pudieron actualizar los datos desde la nube. Inténtalo de nuevo cuando tengas conexión.')
@@ -120,11 +146,21 @@ export default function App() {
       console.error('Error al comprobar avisos de vencimiento:', error)
       setSyncError('No se pudieron comprobar los avisos de vencimiento.')
     }
+  }, [userId])
+
+  const retryPush = useCallback(async () => {
+    try {
+      const synced = await syncPushSubscription()
+      setPushError((previous) => synced ? '' : previous ? 'No hay una suscripción push activa. Abrí Ajustes para revisar los permisos y activarla.' : '')
+    } catch (error) {
+      console.error('No se pudo registrar la suscripción de avisos:', error)
+      setPushError('No se pudieron sincronizar los avisos push. Revisá la conexión y volvé a intentarlo.')
+    }
   }, [])
 
   useEffect(() => {
     const onSyncStatus = (event) => {
-      setSyncError(event.detail.ok ? '' : event.detail.message)
+      if (!event.detail.ok) setSyncError(event.detail.message)
     }
     window.addEventListener(SYNC_STATUS_EVENT, onSyncStatus)
     return () => window.removeEventListener(SYNC_STATUS_EVENT, onSyncStatus)
@@ -133,7 +169,7 @@ export default function App() {
   useEffect(() => {
     if (!userId) return
     sync()
-    syncPushSubscription()
+    retryPush()
     const tick = async () => {
       if (document.visibilityState !== 'visible') return
       try {
@@ -154,14 +190,16 @@ export default function App() {
     const timer = setInterval(tick, 10 * 60 * 1000)
     document.addEventListener('visibilitychange', tick)
     window.addEventListener('online', sync)
+    window.addEventListener('online', retryPush)
     navigator.serviceWorker?.addEventListener('message', onMessage)
     return () => {
       clearInterval(timer)
       document.removeEventListener('visibilitychange', tick)
       window.removeEventListener('online', sync)
+      window.removeEventListener('online', retryPush)
       navigator.serviceWorker?.removeEventListener('message', onMessage)
     }
-  }, [userId, sync])
+  }, [userId, sync, retryPush])
 
   if (session === undefined) return null
 
@@ -178,6 +216,7 @@ export default function App() {
         </div>
       )}
       {session && alarmError && <div className="sync-banner" role="alert">{alarmError}<button type="button" className="btn small" onClick={() => setAlarmError('')}>Cerrar</button></div>}
+      {session && pushError && <div className="sync-banner" role="alert">{pushError}<button type="button" className="btn small" onClick={retryPush}>Reintentar</button></div>}
       <main>
         <Suspense fallback={<p className="msg" role="status">Cargando…</p>}>
         {!session ? (
@@ -187,13 +226,14 @@ export default function App() {
         ) : tab === 'list' ? (
           <InventoryList />
         ) : tab === 'add' ? (
-          <AddFlow onDone={() => setTab('list')} />
+          <AddFlow onDone={() => setTab('list')} onPushError={() => setPushError('No se pudieron activar los avisos push. Revisá la conexión y los permisos en Ajustes.')} />
         ) : tab === 'purchases' ? (
           <PurchaseImportView />
         ) : tab === 'waste' ? (
           <WasteAnalytics />
         ) : (
-          <SettingsView email={session.user.email} userId={userId} onLogout={() => setTab('list')} />
+          <SettingsView email={session.user.email} userId={userId} onLogout={() => setTab('list')}
+            lastSync={lastSync} pending={pending} online={online} syncError={syncError} onSync={sync} onPushChanged={() => setPushError('')} />
         )}
         </Suspense>
       </main>

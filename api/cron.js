@@ -29,6 +29,7 @@ export default async function handler(req, res) {
     const rows = (await rpc('cron_due', { secret })) || []
     const delivered = new Set()
     const dead = new Set()
+    let failed = 0
 
     await Promise.all(
       rows.map(async (r) => {
@@ -40,6 +41,10 @@ export default async function handler(req, res) {
           delivered.add(r.item_id)
         } catch (e) {
           if (e.statusCode === 404 || e.statusCode === 410) dead.add(r.endpoint)
+          else {
+            failed++
+            console.error('Falló el envío de una notificación push:', { status: e.statusCode, code: e.code })
+          }
         }
       }),
     )
@@ -47,10 +52,11 @@ export default async function handler(req, res) {
     await Promise.all([...dead].map((endpoint) => rpc('cron_drop_sub', { secret, endpoint })))
     if (delivered.size) await rpc('cron_mark', { secret, ids: [...delivered] })
 
-    res.status(200).json({
+    res.status(failed ? 503 : 200).json({
       due: new Set(rows.map((r) => r.item_id)).size,
       delivered: delivered.size,
       removedSubscriptions: dead.size,
+      failedSends: failed,
     })
   } catch (e) {
     res.status(500).json({ error: e.message })

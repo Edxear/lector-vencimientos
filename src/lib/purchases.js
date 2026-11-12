@@ -1,3 +1,5 @@
+import { withOpeningExpiry } from './opened.js'
+
 export const PURCHASE_SUPERMARKETS = ['auto', 'Mercadona', 'Carrefour', 'Dia', 'Rappi', 'PedidosYa', 'Supermercado']
 
 const CATEGORY_RULES = [
@@ -131,6 +133,7 @@ export function parsePurchaseText(text = '', options = {}) {
     const expiryDate = toIso(addDays(purchaseDate, days))
 
     candidates.push({
+      originalLine: rawLine,
       name,
       quantity,
       unit: extractUnit(rawLine),
@@ -154,25 +157,29 @@ export function parseCsvPurchase(text = '', options = {}) {
     .split(/\r?\n/)
     .filter((line) => line.length > 0)
 
+  if (!rows.length) return []
+  const separator = rows[0].includes(';') ? ';' : ','
+  const headers = rows[0].split(separator)
+  const productIndex = headers.findIndex((cell) => /producto|nombre|art[ií]culo|item/i.test(cell))
+  const qtyIndex = headers.findIndex((cell) => /cantidad|qty|quantity|unidades/i.test(cell))
+  const productNameField = productIndex >= 0 ? productIndex : 0
+  const qtyField = qtyIndex >= 0 ? qtyIndex : 1
   const candidates = []
   for (const row of rows.slice(1)) {
-    const cells = row.includes(';') ? row.split(';') : row.split(',')
-    const productIndex = cells.findIndex((cell) => /producto|nombre|articulo|item/i.test(cell))
-    const qtyIndex = cells.findIndex((cell) => /cantidad|qty|quantity|unidades/i.test(cell))
-    const productNameField = productIndex >= 0 ? productIndex : 0
-    const qtyField = qtyIndex >= 0 ? qtyIndex : Math.min(1, cells.length - 1)
+    const cells = row.split(separator)
 
     const name = String(cells[productNameField] || '')
       .replace(/^(producto|nombre|articulo|item)\s*[:\-]?/i, '')
       .trim()
     const qtyRaw = String(cells[qtyField] || '1').replace(/[^0-9.,]/g, '').replace(',', '.')
-    const qty = Number(qtyRaw) || 1
+    const qty = Number(qtyRaw)
     if (!name || name.length < 3) continue
 
     const category = guessCategory(name)
     const location = guessLocation(name)
     const days = inferExpiryDays(name)
     candidates.push({
+      originalLine: row,
       name,
       quantity: qty,
       category,
@@ -202,4 +209,22 @@ export function parsePurchaseImport(text = '', options = {}) {
     if (csv.length) return csv
   }
   return parsePurchaseText(input, options)
+}
+
+export function validatePurchaseLines(lines) {
+  if (!lines.length) throw new Error('No hay productos para importar.')
+  for (const [index, item] of lines.entries()) {
+    const prefix = `Producto ${index + 1}:`
+    if (!item.name.trim()) throw new Error(`${prefix} completá el nombre.`)
+    const quantity = Number(item.quantity)
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 2147483647) {
+      throw new Error(`${prefix} la cantidad debe ser un número entero entre 1 y 2147483647.`)
+    }
+    if (!item.expiryConfirmed) throw new Error(`${prefix} revisá y confirmá la fecha de vencimiento.`)
+    try {
+      withOpeningExpiry({ expiryDate: item.expiryDate })
+    } catch {
+      throw new Error(`${prefix} ingresá una fecha de vencimiento válida.`)
+    }
+  }
 }

@@ -260,9 +260,9 @@ export const pendingChanges = () => db.outbox.count()
 
 // Baja el estado de la nube. Solo reemplaza lo local si no hay cambios pendientes.
 export async function pull() {
-  if (!navigator.onLine) return
-  await flush()
-  if ((await db.outbox.count()) > 0) return
+  if (!navigator.onLine) return false
+  if (!(await flush())) return false
+  if ((await db.outbox.count()) > 0) return false
   const [p, i] = await Promise.all([
     supabase.from('products').select('*'),
     supabase.from('items').select('*'),
@@ -271,12 +271,13 @@ export async function pull() {
     console.error('Error al actualizar los datos desde la nube:', p.error || i.error)
     throw new Error('No se pudieron actualizar los datos desde la nube.')
   }
-  await db.transaction('rw', db.products, db.items, db.outbox, async () => {
-    if ((await db.outbox.count()) > 0) return
+  return db.transaction('rw', db.products, db.items, db.outbox, async () => {
+    if ((await db.outbox.count()) > 0) return false
     await db.products.clear()
     await db.items.clear()
     await db.products.bulkPut(p.data.map(fromRemoteProduct))
     await db.items.bulkPut(i.data.map(fromRemoteItem))
+    return true
   })
 }
 
