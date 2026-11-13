@@ -297,7 +297,7 @@ export default function SettingsView({ email, userId, onLogout, lastSync, pendin
       </div>
       <div className="card">
         <h3>Ubicación</h3>
-        <p className="hint">Guardá la ubicación del local para recibir avisos contextuales.</p>
+        <p className="hint">Guarda la ubicación de tu supermercado para recibir recordatorios cuando estés cerca.</p>
         <button className="btn primary" onClick={requestLocation}>Guardar punto de referencia</button>
         <button className="btn" onClick={handleClearGeofence}>Borrar geocerca</button>
         <p className="hint">Estado: {geoState === 'granted' ? 'Activada' : geoState === 'denied' ? 'Denegada' : geoState === 'unsupported' ? 'No disponible' : 'Sin permiso aún'}</p>
