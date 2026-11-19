@@ -164,39 +164,26 @@ button:focus-visible, .btn:focus-visible, .chip:focus-visible, nav button:focus-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
-.chips.areas { flex-wrap: nowrap; overflow-x: auto; padding: 6px 0; margin-bottom: 6px; }
-.chips.areas .chip { white-space: nowrap; flex: 0 0 auto; font-size: .85rem; }
-pre { white-space: pre-wrap; font-size: .75rem; }
-.photo-field { display: grid; gap: 8px; }
-.thumb { border: 1px solid var(--line); border-radius: 12px; padding: 0; background: #eef1f4; overflow: hidden; width: 100%; max-height: 220px; display: block; box-shadow: 0 8px 18px rgba(17,94,89,0.04); }
-.thumb img { width: 100%; max-height: 220px; object-fit: contain; display: block; }
-.modal { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.44); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
-.sheet { background: #fff; width: 100%; max-width: 520px; border-radius: 16px 16px 0 0; padding: 16px; display: grid; gap: 10px; max-height: 92dvh; overflow-y: auto; }
-.preview { background: #eef1f4; border-radius: 10px; overflow: hidden; display: grid; place-items: center; max-height: 45dvh; }
-.preview img { max-width: 100%; max-height: 45dvh; object-fit: contain; }
-.meta { margin: 0; text-align: center; color: var(--muted); font-size: .85rem; }
-.crop-screen { position: fixed; inset: 0; z-index: 40; background: #000; display: flex; flex-direction: column; color: #fff; }
-.crop-top { display: flex; align-items: center; gap: 12px; padding: 12px; font-size: .95rem; }
-.crop-x { background: #fff2; color: #fff; border: 0; border-radius: 50%; width: 36px; height: 36px; font-size: 1rem; }
-.crop-stage { flex: 1; display: grid; place-items: center; overflow: hidden; padding: 0 8px; }
-.crop-frame { position: relative; overflow: hidden; background: #111; touch-action: none; }
-.crop-frame video, .crop-frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
-.crop-rect { position: absolute; border: 2px solid var(--teal); box-shadow: 0 0 0 9999px #0008; touch-action: none; cursor: move; }
-.crop-h { position: absolute; width: 34px; height: 34px; touch-action: none; }
-.crop-h::after { content: ''; position: absolute; width: 16px; height: 16px; border: 4px solid #fff; }
-.crop-h.tl { left: -12px; top: -12px; } .crop-h.tl::after { left: 4px; top: 4px; border-right: 0; border-bottom: 0; }
-.crop-h.tr { right: -12px; top: -12px; } .crop-h.tr::after { right: 4px; top: 4px; border-left: 0; border-bottom: 0; }
-.crop-h.bl { left: -12px; bottom: -12px; } .crop-h.bl::after { left: 4px; bottom: 4px; border-right: 0; border-top: 0; }
-.crop-h.br { right: -12px; bottom: -12px; } .crop-h.br::after { right: 4px; bottom: 4px; border-left: 0; border-top: 0; }
-.crop-error { color: #ffb4b4; text-align: center; padding: 12px; }
-.crop-bar { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
-.crop-bar .btn { background: #fff1; color: #fff; border-color: #fff4; }
-.crop-bar .btn.primary { background: var(--teal); border-color: var(--teal); }
-.shutter { width: 68px; height: 68px; border-radius: 50%; border: 4px solid #fff; background: #fff3; box-shadow: inset 0 0 0 5px #fff; }
-.lightbox { position: fixed; inset: 0; background: #000e; z-index: 30; overflow: auto; display: grid; place-items: center; padding: 10px; }
-.lightbox img { max-width: 100%; max-height: 90dvh; object-fit: contain; }
-.lightbox img.big { max-width: none; max-height: none; width: 250%; }
-.lightbox small { position: fixed; bottom: 10px; left: 0; right: 0; text-align: center; color: #fff9; pointer-events: none; }
+.chips.areas { 
+  flex-wrap: nowrap; 
+  overflow-x: auto; 
+  padding: 6px 0 12px 0; 
+  margin-bottom: 8px; 
+  gap: 8px;
+  /* Ocultar la barra de scroll para que se vea más limpio */
+  scrollbar-width: none; 
+  -ms-overflow-style: none;
+}
+.chips.areas::-webkit-scrollbar {
+  display: none;
+}
+.chips.areas .chip { 
+  white-space: nowrap; 
+  flex: 0 0 auto; 
+  font-size: .85rem; 
+  padding: 8px 14px;
+  border-radius: 20px;
+}
 
 button, input, select, textarea { font-family: inherit; }
 button { cursor: pointer; }
