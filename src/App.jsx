@@ -224,7 +224,7 @@ export default function App() {
         ) : lockEnabled && locked ? (
           <SessionLock email={session.user.email} userId={userId} onUnlock={() => setUnlockedFor(userId)} />
         ) : tab === 'list' ? (
-          <InventoryList />
+          <InventoryList onNavigate={setTab} /> // <-- AQUI ESTA LA CORRECCIÓN
         ) : tab === 'add' ? (
           <AddFlow onDone={() => setTab('list')} onPushError={() => setPushError('No se pudieron activar los avisos push. Revisá la conexión y los permisos en Ajustes.')} />
         ) : tab === 'purchases' ? (
