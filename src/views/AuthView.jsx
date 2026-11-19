@@ -45,7 +45,9 @@ export default function AuthView() {
           <li><strong>Enfocá</strong> y listo.</li>
           <li><strong>Alertas</strong> personalizadas.</li>
         </ol>
-        <p className="hint">Usamos tu cámara para leer códigos y fechas. El primer acceso requiere conexión; después podés trabajar con tus datos guardados en este dispositivo.</p>
+        <p className="hint">
+          Usamos tu cámara para leer códigos y fechas. <strong>Al ingresar, te pediremos permiso para enviarte notificaciones</strong> y así avisarte antes de que tus productos venzan.
+        </p>
       </section>
       <form className="card" onSubmit={submit}>
         <h3>{mode === 'in' ? 'Iniciar sesión' : 'Crear cuenta'}</h3>

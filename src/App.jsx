@@ -13,7 +13,7 @@ const WasteAnalytics = lazy(() => import('./views/WasteAnalytics'))
 import Logo from './views/Logo'
 import { supabase } from './lib/supabase'
 import { db, pull, autoWasteExpired, SYNC_STATUS_EVENT } from './lib/db'
-import { checkExpiringNow } from './lib/notifications'
+import { checkExpiringNow, requestNotificationPermission } from './lib/notifications' // NUEVO: Importamos requestNotificationPermission
 import { syncPushSubscription } from './lib/push'
 import { playAlarm } from './lib/alarm'
 
@@ -24,6 +24,11 @@ export default function App() {
   const [pushError, setPushError] = useState('')
   const [lastSync, setLastSync] = useState(null)
   const [alarmError, setAlarmError] = useState('')
+  // NUEVO: Estado para controlar el permiso de notificaciones
+  const [notifPermission, setNotifPermission] = useState(
+    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
+  )
+
   const pending = useLiveQuery(() => db.outbox.count(), [], 0)
   const [online, setOnline] = useState(navigator.onLine)
   const [unlockedFor, setUnlockedFor] = useState(null)
@@ -201,6 +206,16 @@ export default function App() {
     }
   }, [userId, sync, retryPush])
 
+  // NUEVO: Función para pedir el permiso desde el banner
+  const handleEnableNotifications = async () => {
+    const granted = await requestNotificationPermission()
+    setNotifPermission(granted ? 'granted' : 'denied')
+    if (granted) {
+      // Si acepta, intentamos sincronizar el push inmediatamente
+      retryPush()
+    }
+  }
+
   if (session === undefined) return null
 
   return (
@@ -209,6 +224,17 @@ export default function App() {
         <Logo />
         <h1>Lector Vencimientos</h1>
       </header>
+      
+      {/* NUEVO: Banner para pedir notificaciones si están en 'default' */}
+      {session && notifPermission === 'default' && (
+        <div className="sync-banner" role="alert" style={{ backgroundColor: '#fffbeb', color: '#b45309', borderColor: '#fcd34d' }}>
+          <span>⚠️ <strong>Activa las notificaciones</strong> para recibir alertas antes de que tus productos venzan.</span>
+          <button type="button" className="btn small" style={{ backgroundColor: '#f59e0b', color: 'white', border: 'none' }} onClick={handleEnableNotifications}>
+            Activar ahora
+          </button>
+        </div>
+      )}
+
       {session && bannerMessage && (
         <div className="sync-banner" role={syncError ? 'alert' : 'status'}>
           <span>{bannerMessage}</span>
@@ -217,6 +243,7 @@ export default function App() {
       )}
       {session && alarmError && <div className="sync-banner" role="alert">{alarmError}<button type="button" className="btn small" onClick={() => setAlarmError('')}>Cerrar</button></div>}
       {session && pushError && <div className="sync-banner" role="alert">{pushError}<button type="button" className="btn small" onClick={retryPush}>Reintentar</button></div>}
+      
       <main>
         <Suspense fallback={<p className="msg" role="status">Cargando…</p>}>
         {!session ? (
@@ -224,7 +251,7 @@ export default function App() {
         ) : lockEnabled && locked ? (
           <SessionLock email={session.user.email} userId={userId} onUnlock={() => setUnlockedFor(userId)} />
         ) : tab === 'list' ? (
-          <InventoryList onNavigate={setTab} /> // <-- AQUI ESTA LA CORRECCIÓN
+          <InventoryList onNavigate={setTab} />
         ) : tab === 'add' ? (
           <AddFlow onDone={() => setTab('list')} onPushError={() => setPushError('No se pudieron activar los avisos push. Revisá la conexión y los permisos en Ajustes.')} />
         ) : tab === 'purchases' ? (

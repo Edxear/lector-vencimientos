@@ -79,6 +79,25 @@ export async function checkExpiringNow() {
   if (shown && document.visibilityState === 'visible') await playAlarm()
 }
 
+// Agrega esta función al final de src/lib/notifications.js
+export async function requestNotificationPermission() {
+  if (!('Notification' in window)) {
+    console.warn('Este navegador no soporta notificaciones.')
+    return false
+  }
+  
+  if (Notification.permission === 'granted') return true
+  if (Notification.permission === 'denied') return false
+
+  try {
+    const permission = await Notification.requestPermission()
+    return permission === 'granted'
+  } catch (error) {
+    console.error('Error al solicitar permisos de notificación:', error)
+    return false
+  }
+}
+
 // Genera un .ics con alarma antes del vencimiento
 export function buildIcs(name, expiryISO, notifyDays = 15) {
   const d = expiryISO.replace(/-/g, '')
