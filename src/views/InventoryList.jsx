@@ -123,22 +123,42 @@ export default function InventoryList({ onNavigate }) {
           value={query} onChange={(e) => setQuery(e.target.value)} />
       </div>
 
-      {/* NUEVO: Chips deslizables para las áreas en lugar del menú lateral */}
-      <div className="chips areas">
-        <button type="button" className={`chip ${area === '' ? 'on' : ''}`} onClick={() => pickArea('')}>
+            {/* Pestañas deslizables para las áreas */}
+      <div className="chips areas" role="tablist" aria-label="Filtrar por ubicación">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={area === ''}
+          className={`chip ${area === '' ? 'on' : ''}`}
+          onClick={() => pickArea('')}
+        >
           Todas ({rows.length})
         </button>
         {areas.map((a) => (
-          <button type="button" key={a} className={`chip ${area === a ? 'on' : ''}`} onClick={() => pickArea(a)}>
+          <button
+            type="button"
+            role="tab"
+            key={a}
+            aria-selected={area === a}
+            className={`chip ${area === a ? 'on' : ''}`}
+            onClick={() => pickArea(a)}
+          >
             {a} ({stats.byArea[a] || 0})
           </button>
         ))}
         {stats.none > 0 && (
-          <button type="button" className={`chip ${area === '__none' ? 'on' : ''}`} onClick={() => pickArea('__none')}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={area === '__none'}
+            className={`chip ${area === '__none' ? 'on' : ''}`}
+            onClick={() => pickArea('__none')}
+          >
             Sin área ({stats.none})
           </button>
         )}
       </div>
+
 
       {rows.length === 0 ? (
         <EmptyState 

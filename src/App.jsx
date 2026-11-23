@@ -264,15 +264,56 @@ export default function App() {
         )}
         </Suspense>
       </main>
-      {session && !(lockEnabled && locked) && (
-        <nav>
-          <button className={tab === 'list' ? 'on' : ''} onClick={() => setTab('list')}>Inventario</button>
-          <button className={tab === 'add' ? 'on' : ''} onClick={() => setTab('add')}>＋ Agregar</button>
-          <button className={tab === 'purchases' ? 'on' : ''} onClick={() => setTab('purchases')}>Compras</button>
-          <button className={tab === 'waste' ? 'on' : ''} onClick={() => setTab('waste')}>Pérdidas</button>
-          <button className={tab === 'settings' ? 'on' : ''} onClick={() => setTab('settings')}>Ajustes</button>
+            {session && !(lockEnabled && locked) && (
+        <nav aria-label="Navegación principal">
+          <button
+            type="button"
+            className={tab === 'list' ? 'on' : ''}
+            aria-current={tab === 'list' ? 'page' : undefined}
+            onClick={() => setTab('list')}
+          >
+            <span className="nav-ico" aria-hidden="true">📦</span>
+            <span>Inventario</span>
+          </button>
+          <button
+            type="button"
+            className={tab === 'add' ? 'on' : ''}
+            aria-current={tab === 'add' ? 'page' : undefined}
+            onClick={() => setTab('add')}
+          >
+            <span className="nav-ico" aria-hidden="true">＋</span>
+            <span>Agregar</span>
+          </button>
+          <button
+            type="button"
+            className={tab === 'purchases' ? 'on' : ''}
+            aria-current={tab === 'purchases' ? 'page' : undefined}
+            onClick={() => setTab('purchases')}
+          >
+            <span className="nav-ico" aria-hidden="true">🧾</span>
+            <span>Compras</span>
+          </button>
+          <button
+            type="button"
+            className={tab === 'waste' ? 'on' : ''}
+            aria-current={tab === 'waste' ? 'page' : undefined}
+            onClick={() => setTab('waste')}
+          >
+            <span className="nav-ico" aria-hidden="true">📉</span>
+            <span>Pérdidas</span>
+          </button>
+          <button
+            type="button"
+            className={tab === 'settings' ? 'on' : ''}
+            aria-current={tab === 'settings' ? 'page' : undefined}
+            onClick={() => setTab('settings')}
+          >
+            <span className="nav-ico" aria-hidden="true">⚙️</span>
+            <span>Ajustes</span>
+          </button>
         </nav>
       )}
+
     </div>
   )
 }
