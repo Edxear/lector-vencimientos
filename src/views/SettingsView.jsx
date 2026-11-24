@@ -310,13 +310,37 @@ export default function SettingsView({ email, userId, onLogout, lastSync, pendin
         <button type="button" className="btn" disabled={!online} onClick={onSync}>Sincronizar ahora</button>
       </div>
       <div className="card">
-        <h3>Ubicación</h3>
-        <p className="hint">Guarda la ubicación de tu supermercado para recibir recordatorios cuando estés cerca.</p>
-        <button className="btn primary" onClick={requestLocation}>Guardar punto de referencia</button>
-        <button className="btn" onClick={handleClearGeofence}>Borrar geocerca</button>
-        <p className="hint">Estado: {geoState === 'granted' ? 'Activada' : geoState === 'denied' ? 'Denegada' : geoState === 'unsupported' ? 'No disponible' : 'Sin permiso aún'}</p>
+        <h3>Recordatorio al llegar al local</h3>
+        <p className="hint">
+          Guarda la ubicación de tu comercio para recibir un aviso cuando estés cerca (dentro de un radio de {geofence.radius} metros) y revisar los productos próximos a vencer.
+        </p>
+        <p className="hint">
+          La ubicación se guarda en la configuración de tu cuenta para sincronizar este ajuste entre dispositivos y se usa para activar este recordatorio.
+        </p>
+        <div className="btn-row">
+          <button type="button" className="btn primary" onClick={requestLocation}>
+            {geofence.saved ? 'Actualizar ubicación del local' : 'Usar mi ubicación actual'}
+          </button>
+          {geofence.saved && (
+            <button type="button" className="btn" onClick={handleClearGeofence}>
+              Quitar ubicación
+            </button>
+          )}
+        </div>
+        <p className="hint">
+          Estado del permiso:{' '}
+          {geoState === 'granted'
+            ? 'Activado'
+            : geoState === 'denied'
+              ? 'Bloqueado en el navegador (habilítalo en los ajustes del sitio)'
+              : geoState === 'unsupported'
+                ? 'Tu navegador no soporta geolocalización'
+                : 'Pendiente de autorización'}
+        </p>
         {geofence.saved && (
-          <p className="hint">Punto guardado: {geofence.latitude.toFixed(4)}, {geofence.longitude.toFixed(4)} · radio {geofence.radius} m · {geofence.label}</p>
+          <p className="hint">
+            📍 Ubicación guardada ({geofence.latitude.toFixed(4)}, {geofence.longitude.toFixed(4)}) · Radio de aviso: {geofence.radius} m.
+          </p>
         )}
       </div>
       <div className="card">

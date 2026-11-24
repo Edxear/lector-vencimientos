@@ -28,6 +28,15 @@ function UploadIcon({ document = false }) {
   )
 }
 
+function Spinner({ label }) {
+  return (
+    <span className="spinner-wrap" aria-hidden={!label}>
+      <span className="spinner" />
+      {label && <span>{label}</span>}
+    </span>
+  )
+}
+
 export default function PurchaseImportView() {
   const [mode, setMode] = useState('ticket')
   const [ticketFile, setTicketFile] = useState(null)
@@ -312,9 +321,32 @@ export default function PurchaseImportView() {
             </div>
           )}
 
-          <button type="button" className="btn primary purchase-primary" disabled={busy || !canProcess} onClick={processInput}>
-            {busy ? 'Procesando…' : mode === 'ticket' ? 'Procesar ticket' : 'Procesar compra'}
+          <button
+            type="button"
+            className="btn primary purchase-primary"
+            disabled={busy || !canProcess}
+            aria-busy={busy}
+            onClick={processInput}
+          >
+            {busy ? (
+              <Spinner label={mode === 'ticket' ? 'Analizando ticket con OCR…' : 'Procesando compra…'} />
+            ) : (
+              mode === 'ticket' ? 'Procesar ticket' : 'Procesar compra'
+            )}
           </button>
+          {busy && (
+            <div className="purchase-loading-box" role="status" aria-live="polite">
+              <Spinner />
+              <div>
+                <strong>{status || (mode === 'ticket' ? 'Leyendo productos del ticket…' : 'Analizando datos…')}</strong>
+                <small>
+                  {mode === 'ticket'
+                    ? 'Esto puede demorar unos segundos según la nitidez de la imagen.'
+                    : 'Esto puede demorar unos segundos según el volumen de datos.'}
+                </small>
+              </div>
+            </div>
+          )}
           {mode === 'ticket' && <p className="hint purchase-help">El supermercado se detectará automáticamente.</p>}
         </>
       )}
@@ -399,8 +431,14 @@ export default function PurchaseImportView() {
           {preview.length === 0
             ? <p className="purchase-validation-summary" role="status">Agregá al menos una línea para importar.</p>
             : invalidLines > 0 && <p className="purchase-validation-summary" role="status">Corregí {invalidLines} {invalidLines === 1 ? 'línea' : 'líneas'} antes de importar.</p>}
-          <button type="button" className="btn primary purchase-primary" disabled={busy || !canImport} onClick={importAll}>
-            {busy ? 'Importando…' : 'Confirmar e importar al inventario'}
+          <button
+            type="button"
+            className="btn primary purchase-primary"
+            disabled={busy || !canImport}
+            aria-busy={busy}
+            onClick={importAll}
+          >
+            {busy ? <Spinner label="Importando al inventario…" /> : 'Confirmar e importar al inventario'}
           </button>
         </>
       )}

@@ -2,7 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import 'fake-indexeddb/auto'
-import { hasActiveStock, isZeroStock } from '../src/lib/stock.js'
+import { buildBulkMovePatch, hasActiveStock, isZeroStock, sanitizeSelectedIds } from '../src/lib/stock.js'
+
+test('filtra la selección al inventario visible y limpia el área de destino', () => {
+  const activeItems = [{ id: 'a' }, { id: 'b' }]
+  assert.deepEqual(sanitizeSelectedIds(['a', 'removed', 'b'], activeItems), ['a', 'b'])
+  assert.deepEqual(buildBulkMovePatch('  Frío  '), { location: 'Frío' })
+  assert.deepEqual(buildBulkMovePatch(''), { location: '' })
+})
 
 Object.defineProperty(globalThis, 'navigator', { value: { onLine: false }, configurable: true })
 globalThis.window = new EventTarget()
