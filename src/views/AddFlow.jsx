@@ -6,6 +6,16 @@ import { getProduct, saveProduct, addItems, logEvent } from '../lib/db'
 import { lookupOpenFoodFacts } from '../lib/products'
 import { pushSupported, enablePush } from '../lib/push'
 
+const CATEGORY_DEFAULT_AREA = {
+  'Lácteos': 'Frío',
+  'Carnes': 'Carnicería',
+  'Frutas y verduras': 'Verdulería',
+  'Almacén': 'Almacén',
+  'Bebidas': 'Almacén',
+  'Congelados': 'Congelados',
+  'Limpieza': 'Almacén',
+}
+
 function finishMetrics(metrics, outcome, extra = {}) {
   if (!metrics || metrics.ended) return
   metrics.ended = true
@@ -81,10 +91,26 @@ export default function AddFlow({ onDone, onPushError }) {
     setStep('scan')
   }
 
+  function startManualProduct() {
+    abortRef.current?.abort()
+    setError('')
+    const generatedEan = `MAN-${Date.now()}`
+    setProduct({ ean: generatedEan, name: '', brand: '', content: '', category: '', imageUrl: '', source: 'manual' })
+    setStep('confirm-product')
+  }
+
   async function confirmProduct() {
     setError('')
     try {
-      await saveProduct(product)
+      const cleanProduct = {
+        ...product,
+        name: product.name.trim(),
+        brand: (product.brand || '').trim(),
+        content: (product.content || '').trim(),
+        category: (product.category || '').trim(),
+      }
+      setProduct(cleanProduct)
+      await saveProduct(cleanProduct)
       setStep('expiry')
     } catch (e) {
       recordError()
@@ -123,7 +149,10 @@ export default function AddFlow({ onDone, onPushError }) {
             O ingresá el identificador a mano
             <input value={manualEan} onChange={(e) => setManualEan(e.target.value)} />
           </label>
-          <button className="btn" disabled={!manualEan.trim()} onClick={() => handleEan(manualEan)}>Buscar</button>
+          <div className="btn-row">
+            <button className="btn" disabled={!manualEan.trim()} onClick={() => handleEan(manualEan)}>Buscar</button>
+            <button type="button" className="btn" onClick={startManualProduct}>Producto sin código</button>
+          </div>
           {error && <p className="hint warn" role="alert">{error}</p>}
         </div>
       </>
@@ -151,5 +180,14 @@ export default function AddFlow({ onDone, onPushError }) {
       </div>
     )
 
-  return <><ExpiryCapture onConfirm={saveExpiry} onOcrError={recordError} />{error && <p className="hint warn" role="alert">{error}</p>}</>
+  return (
+    <>
+      <ExpiryCapture
+        defaultLocation={CATEGORY_DEFAULT_AREA[product?.category] || ''}
+        onConfirm={saveExpiry}
+        onOcrError={recordError}
+      />
+      {error && <p className="hint warn" role="alert">{error}</p>}
+    </>
+  )
 }

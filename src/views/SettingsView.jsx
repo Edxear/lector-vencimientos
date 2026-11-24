@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { supabase } from '../lib/supabase'
 import { db, exportAll, flush, clearLocal, pendingChanges, importInventory } from '../lib/db'
 import { inventoryRows, parseInventoryRows } from '../lib/excel'
-import { summarizeAddMetrics } from '../lib/addMetrics'
+import { summarizeAddMetrics, shouldShowTechnicalMetrics } from '../lib/addMetrics'
 import { ALARM_SOUNDS, getAlarmSound, setAlarmSound, playAlarm } from '../lib/alarm'
 import { getPushState, enablePush, disablePush } from '../lib/push'
 import { appVersion, buildDate } from '../lib/buildInfo'
@@ -45,7 +45,12 @@ export default function SettingsView({ email, userId, onLogout, lastSync, pendin
   const [excelStatus, setExcelStatus] = useState('')
   const [excelBusy, setExcelBusy] = useState(false)
   const [alarmSound, setAlarmSoundState] = useState(getAlarmSound())
-  const metricEvents = useLiveQuery(() => db.events.where('type').anyOf('add_flow_start', 'add_flow_end').toArray(), [])
+  const [showTechMetrics, setShowTechMetrics] = useState(() => shouldShowTechnicalMetrics())
+  const [versionTaps, setVersionTaps] = useState(0)
+  const metricEvents = useLiveQuery(
+    () => showTechMetrics ? db.events.where('type').anyOf('add_flow_start', 'add_flow_end').toArray() : [],
+    [showTechMetrics],
+  )
   const metrics = summarizeAddMetrics(metricEvents || [])
   const permission = !('Notification' in window) ? 'No disponible'
     : Notification.permission === 'granted' ? 'Concedido'
@@ -249,6 +254,15 @@ export default function SettingsView({ email, userId, onLogout, lastSync, pendin
     await persistLocalAndRemote()
   }
 
+  function handleVersionTap() {
+    if (versionTaps + 1 >= 5) {
+      setVersionTaps(0)
+      setShowTechMetrics((visible) => !visible)
+      return
+    }
+    setVersionTaps(versionTaps + 1)
+  }
+
   return (
     <div>
       <div className="card">
@@ -315,14 +329,16 @@ export default function SettingsView({ email, userId, onLogout, lastSync, pendin
         </label>
         <p className="hint">Se usa para decidir cuando una fecha como 03/04/27 puede leerse de más de una forma. Siempre podrás elegir otra lectura antes de guardar.</p>
       </div>
-      <div className="card">
-        <h3>Medición local del alta</h3>
-        <p className="hint">Solo en este dispositivo: {metrics.started} intentos, {metrics.completed} completados, {metrics.abandoned} abandonados y {metrics.incomplete} incompletos.</p>
-        <p className="hint">Tiempo medio de altas completadas: {metrics.averageDurationMs == null ? 'sin datos' : `${(metrics.averageDurationMs / 1000).toFixed(1)} s`}. Errores de escaneo, búsqueda, guardado u OCR registrados: {metrics.errors}.</p>
-        <p className="hint">Fechas OCR confirmadas sin edición: {metrics.ocrSuggested ? `${metrics.ocrUnedited}/${metrics.ocrSuggested} (${Math.round(metrics.ocrUnedited * 100 / metrics.ocrSuggested)} %)` : 'sin datos'}. Esto no mide la precisión real.</p>
-        <p className="hint">Los intentos incompletos pueden deberse a interrupciones; no se cuentan como abandonos confirmados. Al cerrar sesión se borran estos datos locales.</p>
-        <button type="button" className="btn" onClick={exportMetrics}>Exportar métricas locales</button>
-      </div>
+      {showTechMetrics && (
+        <div className="card">
+          <h3>Medición local del alta</h3>
+          <p className="hint">Solo en este dispositivo: {metrics.started} intentos, {metrics.completed} completados, {metrics.abandoned} abandonados y {metrics.incomplete} incompletos.</p>
+          <p className="hint">Tiempo medio de altas completadas: {metrics.averageDurationMs == null ? 'sin datos' : `${(metrics.averageDurationMs / 1000).toFixed(1)} s`}. Errores de escaneo, búsqueda, guardado u OCR registrados: {metrics.errors}.</p>
+          <p className="hint">Fechas OCR confirmadas sin edición: {metrics.ocrSuggested ? `${metrics.ocrUnedited}/${metrics.ocrSuggested} (${Math.round(metrics.ocrUnedited * 100 / metrics.ocrSuggested)} %)` : 'sin datos'}. Esto no mide la precisión real.</p>
+          <p className="hint">Los intentos incompletos pueden deberse a interrupciones; no se cuentan como abandonos confirmados. Al cerrar sesión se borran estos datos locales.</p>
+          <button type="button" className="btn" onClick={exportMetrics}>Exportar métricas locales</button>
+        </div>
+      )}
       <div className="card">
         <h3>Cuenta</h3>
         <p className="hint">{email}</p>
@@ -353,7 +369,7 @@ export default function SettingsView({ email, userId, onLogout, lastSync, pendin
         </button>
       </div>
       <div className="card">
-        <h3>Versión</h3>
+        <h3 onClick={handleVersionTap}>Versión</h3>
         <p className="hint">Versión: {appVersion}</p>
         <p className="hint">Actualizado: {new Date(buildDate).toLocaleString()}</p>
       </div>

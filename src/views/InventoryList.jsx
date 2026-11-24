@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { addItems, db, setProductArchived } from '../lib/db'
+import { REUSE_LABELS, buildReusePatch, buildWastePatch } from '../lib/waste'
+import { addItems, db, setProductArchived, updateItem } from '../lib/db'
 import { daysUntil } from '../lib/dates'
 import { LOCATIONS } from '../lib/settings'
 import { buildIcs } from '../lib/notifications'
@@ -26,6 +27,32 @@ export default function InventoryList({ onNavigate }) {
   const [area, setArea] = useState('')
   const [addingProduct, setAddingProduct] = useState(null)
   const [catalogError, setCatalogError] = useState('')
+
+  const [reuseTargetId, setReuseTargetId] = useState(null)
+  const [actionError, setActionError] = useState('')
+
+  async function handleQuickWaste(e, item) {
+    e.stopPropagation()
+    setActionError('')
+    try {
+      await updateItem(item.id, buildWastePatch())
+      if (reuseTargetId === item.id) setReuseTargetId(null)
+    } catch (err) {
+      setActionError(err.message || 'No se pudo registrar la pérdida.')
+    }
+  }
+
+  async function handleQuickReuse(e, item, label) {
+    e.stopPropagation()
+    setActionError('')
+    try {
+      await updateItem(item.id, buildReusePatch(label))
+      setReuseTargetId(null)
+    } catch (err) {
+      setActionError(err.message || 'No se pudo registrar el aprovechamiento.')
+    }
+  }
+
 
   const rows = useLiveQuery(async () => {
     const items = (await db.items.orderBy('expiryDate').toArray()).filter(hasActiveStock)
@@ -123,7 +150,8 @@ export default function InventoryList({ onNavigate }) {
           value={query} onChange={(e) => setQuery(e.target.value)} />
       </div>
 
-            {/* Pestañas deslizables para las áreas */}
+      {/* Pestañas deslizables para las áreas */}
+      {actionError && <p className="hint warn" role="alert">{actionError}</p>}
       <div className="chips areas" role="tablist" aria-label="Filtrar por ubicación">
         <button
           type="button"
@@ -174,6 +202,7 @@ export default function InventoryList({ onNavigate }) {
             const days = daysUntil(r.expiryDate)
             const name = r.product?.name || r.ean
             const sub = [r.product?.brand, r.product?.content].filter(Boolean).join(' · ')
+            const isChoosingReuse = reuseTargetId === r.id
             return (
               <li key={r.id} className={`row ${color(days, r.notifyDays ?? 15)}`} onClick={() => setEditing(r)}>
                 {r.product?.imageUrl ? <img className="mini" src={r.product.imageUrl} alt="" /> : <div className="mini ph">📦</div>}
@@ -187,9 +216,53 @@ export default function InventoryList({ onNavigate }) {
                   {r.receivedDate && <small>Recepción: {r.receivedDate}</small>}
                   {r.openedDate && <small>Abierto: {r.openedDate} · {r.openedDays} días · vencimiento original: {r.sealedExpiryDate}</small>}
                   {r.product?.archived && <small>Archivado en otro dispositivo; el lote sigue activo.</small>}
+
+                  {isChoosingReuse && (
+                    <div className="waste-reuse-options" onClick={(e) => e.stopPropagation()}>
+                      {REUSE_LABELS.map((label) => (
+                        <button
+                          key={label}
+                          type="button"
+                          className="chip"
+                          onClick={(e) => handleQuickReuse(e, r, label)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <button className="icon-btn" aria-label="Recordatorio de calendario"
-                  onClick={(e) => { e.stopPropagation(); download(`${name}.ics`, buildIcs(name, r.expiryDate, r.notifyDays ?? 15), 'text/calendar') }}>🔔</button>
+
+                <div className="quick-actions" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className={`icon-btn reuse ${isChoosingReuse ? 'on' : ''}`}
+                    title="Marcar como aprovechado / reutilizado"
+                    aria-label={`Marcar ${name} como reutilizado`}
+                    aria-expanded={isChoosingReuse}
+                    onClick={() => setReuseTargetId(isChoosingReuse ? null : r.id)}
+                  >
+                    ♻️
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn waste"
+                    title="Marcar como pérdida"
+                    aria-label={`Marcar ${name} como pérdida`}
+                    onClick={(e) => handleQuickWaste(e, r)}
+                  >
+                    🗑️
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    title="Recordatorio de calendario"
+                    aria-label="Recordatorio de calendario"
+                    onClick={(e) => { e.stopPropagation(); download(`${name}.ics`, buildIcs(name, r.expiryDate, r.notifyDays ?? 15), 'text/calendar') }}
+                  >
+                    🔔
+                  </button>
+                </div>
               </li>
             )
           })}
@@ -200,9 +273,9 @@ export default function InventoryList({ onNavigate }) {
         <h3 id="catalog-title">Productos sin stock</h3>
         <p className="hint">Archivá los productos que no necesitás ver en la lista principal; sus datos e historial se conservan. Podés agregar un lote para reutilizarlos.</p>
         {catalogError && <p className="hint warn" role="alert">{catalogError}</p>}
-        
+
         {catalog && catalog.length === 0 ? (
-          <EmptyState 
+          <EmptyState
             icon="📋"
             title="No hay productos sin stock"
             description="Todos los productos que registraste tienen stock activo en este momento."
@@ -217,7 +290,7 @@ export default function InventoryList({ onNavigate }) {
           </>
         )}
       </section>
-      
+
       {zeroRows?.length > 0 && <section className="card">
         <details>
           <summary>Lotes con cantidad cero ({zeroRows.length})</summary>

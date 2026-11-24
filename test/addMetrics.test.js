@@ -1,6 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { summarizeAddMetrics } from '../src/lib/addMetrics.js'
+import { summarizeAddMetrics, shouldShowTechnicalMetrics } from '../src/lib/addMetrics.js'
+
+test('las métricas técnicas solo se muestran con el parámetro debug=1', () => {
+  assert.equal(shouldShowTechnicalMetrics(''), false)
+  assert.equal(shouldShowTechnicalMetrics('?debug=0'), false)
+  assert.equal(shouldShowTechnicalMetrics('?debug=1'), true)
+  assert.equal(shouldShowTechnicalMetrics('?other=1&debug=1'), true)
+})
 
 test('resume altas completadas, abandonadas e interrumpidas sin mezclar eventos anteriores', () => {
   const events = [

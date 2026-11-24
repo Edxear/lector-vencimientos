@@ -2,6 +2,22 @@ import { isZeroStock } from './stock.js'
 
 export const REUSE_LABELS = ['Cocinado', 'Congelado', 'Donado', 'Compartido', 'Devuelto a proveedor', 'Consumido a tiempo']
 
+export function buildWastePatch(now = Date.now()) {
+  return {
+    wastedAt: now,
+    reusedAt: null,
+    reuseLabel: '',
+  }
+}
+
+export function buildReusePatch(reuseLabel = 'Consumido a tiempo', now = Date.now()) {
+  return {
+    reusedAt: now,
+    reuseLabel,
+    wastedAt: null,
+  }
+}
+
 // Momento en que el lote pasó a estar vencido: el inicio del día siguiente a su fecha de vencimiento
 export function expiredAt(expiryDate) {
   const [y, m, d] = String(expiryDate || '').split('-').map(Number)

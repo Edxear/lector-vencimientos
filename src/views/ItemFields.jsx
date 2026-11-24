@@ -5,6 +5,7 @@ import PhotoField from './PhotoField'
 // Datos propios de cada unidad/lote: vencimiento, cantidad, ubicación, aviso, notas y foto de la fecha
 export default function ItemFields({ value, onChange, onPhotoFile, allowZero = false }) {
   const [scanSignal, setScanSignal] = useState(0)
+  const [customLocation, setCustomLocation] = useState(Boolean(value.location && !LOCATIONS.includes(value.location)))
   const set = (k, v) => onChange({ ...value, [k]: v })
   const zones = APP_CONTEXTS[getAppUseCase()].zones
   const locations = [...LOCATIONS].sort((a, b) => {
@@ -12,6 +13,16 @@ export default function ItemFields({ value, onChange, onPhotoFile, allowZero = f
     const bIndex = zones.indexOf(b)
     return (aIndex < 0 ? zones.length : aIndex) - (bIndex < 0 ? zones.length : bIndex)
   })
+
+  function handleLocationChange(location) {
+    if (location === '__custom') {
+      setCustomLocation(true)
+      set('location', '')
+    } else {
+      setCustomLocation(false)
+      set('location', location)
+    }
+  }
 
   return (
     <>
@@ -24,6 +35,36 @@ export default function ItemFields({ value, onChange, onPhotoFile, allowZero = f
           📷 {value.expiryPhoto ? 'Reescanear' : 'Escanear'}
         </button>
       </div>
+      <div className="two">
+        <label>
+          Cantidad
+          <input type="number" min={allowZero ? 0 : 1} max="2147483647" step="1" inputMode="numeric" value={value.quantity}
+            onChange={(e) => set('quantity', Math.max(allowZero ? 0 : 1, Number(e.target.value) || 0))} />
+        </label>
+        <label>
+          Área
+          <select
+            value={customLocation ? '__custom' : value.location}
+            onChange={(e) => handleLocationChange(e.target.value)}
+          >
+            <option value="">Sin definir</option>
+            {value.location && !locations.includes(value.location) && <option>{value.location}</option>}
+            {locations.map((l) => <option key={l}>{l}</option>)}
+            <option value="__custom">+ Crear área…</option>
+          </select>
+        </label>
+      </div>
+      {customLocation && (
+        <label>
+          Nombre del área
+          <input
+            value={value.location || ''}
+            placeholder="Ej: Despensa, Freezer…"
+            onChange={(e) => set('location', e.target.value)}
+            autoFocus
+          />
+        </label>
+      )}
       <label>
         Fecha de recepción (opcional)
         <input type="date" value={value.receivedDate || ''} onChange={(e) => set('receivedDate', e.target.value)} />
@@ -38,21 +79,6 @@ export default function ItemFields({ value, onChange, onPhotoFile, allowZero = f
           onChange={(e) => set('openedDays', e.target.value)} placeholder="Ej: 3" />
       </label>
       <p className="hint">La apertura se aplica a todas las unidades del lote. Para abrir solo algunas, registralas en otro lote. Se usa la fecha más temprana entre el vencimiento original y la fecha calculada tras abrir.</p>
-      <div className="two">
-        <label>
-          Cantidad
-          <input type="number" min={allowZero ? 0 : 1} max="2147483647" step="1" inputMode="numeric" value={value.quantity}
-            onChange={(e) => set('quantity', Math.max(allowZero ? 0 : 1, Number(e.target.value) || 0))} />
-        </label>
-        <label>
-          Área
-          <select value={value.location} onChange={(e) => set('location', e.target.value)}>
-            <option value="">Sin definir</option>
-            {value.location && !locations.includes(value.location) && <option>{value.location}</option>}
-            {locations.map((l) => <option key={l}>{l}</option>)}
-          </select>
-        </label>
-      </div>
       <label>
         Costo por unidad (ARS)
         <input type="number" min="0" max="9999999999.99" step="0.01" inputMode="decimal" value={value.unitCost ?? ''}

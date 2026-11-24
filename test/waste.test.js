@@ -1,6 +1,19 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { getMonthlyReuseSavings, getMonthlyWasteTrends, wasteTrendsCsv, getWasteAnalytics, formatWasteCurrency, shouldAutoWaste, expiredAt } from '../src/lib/waste.js'
+import { getMonthlyReuseSavings, getMonthlyWasteTrends, wasteTrendsCsv, getWasteAnalytics, formatWasteCurrency, shouldAutoWaste, expiredAt, buildReusePatch, buildWastePatch } from '../src/lib/waste.js'
+
+test('los cambios de estado de pérdidas y aprovechamiento son excluyentes', () => {
+  assert.deepEqual(buildWastePatch(123), {
+    wastedAt: 123,
+    reusedAt: null,
+    reuseLabel: '',
+  })
+  assert.deepEqual(buildReusePatch('Donado', 456), {
+    reusedAt: 456,
+    reuseLabel: 'Donado',
+    wastedAt: null,
+  })
+})
 
 test('un lote vencido se registra solo como pérdida con la fecha en que venció', () => {
   const now = new Date(2026, 10, 5, 10).getTime()

@@ -19,7 +19,7 @@ function Chips({ list, selected, onPick }) {
   )
 }
 
-export default function ExpiryCapture({ onConfirm, onOcrError }) {
+export default function ExpiryCapture({ onConfirm, onOcrError, defaultLocation = '' }) {
   const [busy, setBusy] = useState('')
   const [saving, setSaving] = useState(false)
   const [candidates, setCandidates] = useState([])
@@ -28,7 +28,7 @@ export default function ExpiryCapture({ onConfirm, onOcrError }) {
   const [additionalLots, setAdditionalLots] = useState([])
   const ocrReview = useRef({ suggestedDate: '', edited: false })
   const [item, setItem] = useState({
-    expiryDate: '', receivedDate: '', quantity: 1, location: '', notes: '', notifyDays: getDefaultNotifyDays(), expiryPhoto: '',
+    expiryDate: '', receivedDate: '', quantity: 1, location: defaultLocation, notes: '', notifyDays: getDefaultNotifyDays(), expiryPhoto: '',
   })
 
   async function onPhotoFile(file) {

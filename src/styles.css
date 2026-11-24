@@ -395,3 +395,26 @@ nav button:focus-visible {
   .purchase-review-actions .btn { flex-basis: 100%; }
   .purchase-preview-item .two { grid-template-columns: 1fr; }
 }
+
+.quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.quick-actions .icon-btn {
+  min-width: 38px;
+  min-height: 38px;
+  padding: 6px;
+  font-size: 1.05rem;
+}
+.quick-actions .icon-btn.reuse {
+  background: #ecfdf5;
+}
+.quick-actions .icon-btn.reuse.on {
+  background: var(--navy2);
+  color: #fff;
+}
+.quick-actions .icon-btn.waste {
+  background: #fef2f2;
+}

@@ -1,3 +1,11 @@
+export function shouldShowTechnicalMetrics(search = typeof window !== 'undefined' ? window.location.search : '') {
+  try {
+    return new URLSearchParams(search).get('debug') === '1'
+  } catch {
+    return false
+  }
+}
+
 export function summarizeAddMetrics(events) {
   const starts = new Map()
   const ends = new Map()
